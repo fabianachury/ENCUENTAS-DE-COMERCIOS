@@ -1,0 +1,19 @@
+{
+  "name": "qr-encuestas-restaurantes",
+  "version": "1.0.0",
+  "description": "Sistema Multi-Restaurante de Encuestas QR, Embudo Inteligente de Reseñas para Google Maps y CRM de Fidelización",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "qr-code",
+    "google-reviews",
+    "restaurant-feedback",
+    "crm",
+    "google-sheets"
+  ],
+  "author": "Antigravity",
+  "license": "MIT"
+}

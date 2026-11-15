@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Encuestas QR & Blindaje de Reputación</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              primary: 'var(--brand-primary, #b45309)',
+              accent: 'var(--brand-accent, #f59e0b)'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans antialiased">
+
+  <!-- ========================================== -->
+  <!-- BARRA DE NAVEGACIÓN SUPERIOR               -->
+  <!-- ========================================== -->
+  <header class="no-print bg-white border-b border-slate-200/80 sticky top-0 z-40 shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">⭐</span>
+        <div>
+          <span class="font-extrabold text-slate-900 tracking-tight text-base sm:text-lg block">
+            QR Reputación <span class="text-amber-600 font-bold text-xs uppercase px-2 py-0.5 bg-amber-50 rounded-full border border-amber-200">PRO</span>
+          </span>
+          <span class="text-[11px] text-slate-400 hidden sm:block">Blindaje de Google Maps & CRM de Cumpleaños</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="nav-btn-client" onclick="switchView('client')" class="px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition bg-amber-600 text-white shadow-sm hover:bg-amber-700">
+          📱 Modo Cliente
+        </button>
+        <button id="nav-btn-admin" onclick="switchView('admin')" class="px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition text-slate-600 hover:text-slate-900 hover:bg-slate-100">
+          ⚙️ Administrador
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================== -->
+  <!-- VISTA 1: EXPERIENCIA DEL CLIENTE (MÓVIL)   -->
+  <!-- ========================================== -->
+  <main id="client-view" class="flex-1 flex flex-col items-center justify-start p-4 sm:p-6 w-full max-w-lg mx-auto">
+    
+    <!-- TARJETA PRINCIPAL DEL CLIENTE -->
+    <div class="w-full bg-white rounded-3xl shadow-xl border border-slate-200/70 overflow-hidden my-auto transition-all">
+
+      <!-- Encabezado con Identidad del Restaurante -->
+      <div class="p-6 text-center border-b border-slate-100 bg-gradient-to-b from-amber-50/50 to-white">
+        <div class="w-20 h-20 mx-auto rounded-2xl bg-white border-2 border-amber-100 shadow-md p-2 flex items-center justify-center mb-3">
+          <img id="restaurant-logo" src="https://cdn-icons-png.flaticon.com/512/992/992747.png" alt="Logo" class="max-w-full max-h-full object-contain">
+        </div>
+        <h1 id="restaurant-name" class="text-2xl font-black text-slate-900 tracking-tight mb-1">
+          Pastelería & Café Milhojas
+        </h1>
+        <p id="restaurant-tagline" class="text-xs text-slate-500 font-medium">
+          Tradición artesanal y momentos dulces
+        </p>
+
+        <!-- Banner Gancho de Beneficio VIP -->
+        <div class="mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-900 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2">
+          <span>🎂</span>
+          <span id="reward-text-display">¡Únete a nuestro Club VIP y recibe sorpresas especiales en tu cumpleaños!</span>
+        </div>
+      </div>
+
+      <!-- ======================================== -->
+      <!-- PASO 1: DATOS VIP Y CUMPLEAÑOS           -->
+      <!-- ======================================== -->
+      <div id="step-1" class="p-6">
+        <div class="mb-5 text-center">
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 mb-2">
+            Paso 1 de 2: Registro VIP
+          </span>
+          <h2 class="text-lg font-bold text-slate-800">Queremos consentirte</h2>
+          <p class="text-xs text-slate-500">Completa tus datos para enviarte tu beneficio de cumpleaños y promociones exclusivas.</p>
+        </div>
+
+        <form id="vip-form" class="space-y-4">
+          <!-- Nombre -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Tu Nombre Completo *
+            </label>
+            <input type="text" id="vip-name" required placeholder="Ej. Camila Morales" class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm outline-none transition">
+          </div>
+
+          <!-- WhatsApp -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Número de WhatsApp *
+            </label>
+            <div class="flex gap-2">
+              <span class="inline-flex items-center px-3 rounded-xl border border-slate-300 bg-slate-50 text-slate-600 text-xs font-semibold">
+                🇨🇴 +57
+              </span>
+              <input type="tel" id="vip-phone" required placeholder="300 123 4567" class="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm outline-none transition">
+            </div>
+          </div>
+
+          <!-- Fecha de Cumpleaños -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Fecha de Cumpleaños (Día y Mes) *
+            </label>
+            <div class="grid grid-cols-2 gap-2">
+              <select id="birth-day" required class="w-full px-3 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 text-sm bg-white outline-none">
+                <option value="">Día</option>
+                <script>
+                  for(let i=1; i<=31; i++) {
+                    document.write(`<option value="${i}">${i}</option>`);
+                  }
+                </script>
+              </select>
+              <select id="birth-month" required class="w-full px-3 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 text-sm bg-white outline-none">
+                <option value="">Mes</option>
+                <option value="1">Enero</option>
+                <option value="2">Febrero</option>
+                <option value="3">Marzo</option>
+                <option value="4">Abril</option>
+                <option value="5">Mayo</option>
+                <option value="6">Junio</option>
+                <option value="7">Julio</option>
+                <option value="8">Agosto</option>
+                <option value="9">Septiembre</option>
+                <option value="10">Octubre</option>
+                <option value="11">Noviembre</option>
+                <option value="12">Diciembre</option>
+              </select>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1">Solo necesitamos el día y el mes para festejarte.</p>
+          </div>
+
+          <!-- Habeas Data Checkbox -->
+          <div class="pt-2">
+            <label class="flex items-start gap-2.5 cursor-pointer">
+              <input type="checkbox" id="vip-terms" checked class="mt-1 w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500">
+              <span class="text-xs text-slate-600 leading-relaxed">
+                Autorizo el tratamiento de mis datos personales según la <button type="button" onclick="openHabeasModal()" class="text-amber-700 font-semibold underline">política de privacidad (Habeas Data)</button> para recibir beneficios por WhatsApp.
+              </span>
+            </label>
+          </div>
+
+          <!-- Botón Continuar -->
+          <button type="submit" class="w-full mt-4 py-3.5 px-6 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm shadow-lg shadow-amber-600/30 transition transform active:scale-98 flex items-center justify-center gap-2">
+            <span>Continuar a la Encuesta</span>
+            <span>→</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- ======================================== -->
+      <!-- PASO 2: ENCUESTA DE SATISFACCIÓN         -->
+      <!-- ======================================== -->
+      <div id="step-2" class="p-6 hidden">
+        <div class="mb-5 text-center">
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 mb-2">
+            Paso 2 de 2: Tu Experiencia
+          </span>
+          <h2 class="text-lg font-bold text-slate-800">¿Cómo estuvo tu visita hoy?</h2>
+          <p class="text-xs text-slate-500">Tu opinión nos ayuda a brindarte siempre lo mejor.</p>
+        </div>
+
+        <form id="survey-form" class="space-y-5">
+
+          <!-- CONTENEDOR DINÁMICO DE ASPECTOS (Personalizables por restaurante con recuadro de observaciones) -->
+          <div id="survey-dynamic-aspects-container" class="space-y-4">
+            <!-- Inyectado dinámicamente con JavaScript -->
+          </div>
+
+          <!-- CALIFICACIÓN GENERAL EN ESTRELLAS -->
+          <div class="py-2 text-center">
+            <label class="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
+              Calificación General de tu Visita *
+            </label>
+            <div id="overall-stars-container" class="flex justify-center items-center gap-2 text-4xl cursor-pointer py-1">
+              <span data-value="1" class="star-btn text-amber-400">★</span>
+              <span data-value="2" class="star-btn text-amber-400">★</span>
+              <span data-value="3" class="star-btn text-amber-400">★</span>
+              <span data-value="4" class="star-btn text-amber-400">★</span>
+              <span data-value="5" class="star-btn text-amber-400">★</span>
+            </div>
+            <p id="overall-rating-label" class="text-xs font-bold text-amber-700 mt-1">
+              ⭐ ¡Excelente experiencia!
+            </p>
+          </div>
+
+          <!-- Comentario libre -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Comentario u Opinión (Opcional)
+            </label>
+            <textarea id="survey-comment" rows="3" placeholder="¿Qué fue lo que más te gustó o qué detalle podemos perfeccionar?" class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm outline-none transition"></textarea>
+          </div>
+
+          <!-- Botón de Envío -->
+          <button type="submit" id="submit-survey-btn" class="w-full py-4 px-6 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm shadow-lg shadow-amber-600/30 transition transform active:scale-98 flex items-center justify-center gap-2">
+            <span>Finalizar y Enviar Opinión</span>
+            <span>✨</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- ======================================== -->
+      <!-- PASO 3: BIFURCACIÓN INTELIGENTE          -->
+      <!-- ======================================== -->
+      <div id="step-3" class="p-6 hidden">
+        
+        <!-- RAMA A: 5 ESTRELLAS (A GOOGLE MAPS) -->
+        <div id="branch-google-success" class="text-center py-4 space-y-4">
+          <div class="w-20 h-20 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-4xl shadow-inner animate-bounce">
+            🎉
+          </div>
+
+          <h2 class="text-2xl font-black text-slate-900 tracking-tight">
+            ¡Eres lo máximo, <span id="success-client-name">Amigo</span>!
+          </h2>
+
+          <p class="text-sm text-slate-600 leading-relaxed px-2">
+            Nos alegra inmensamente que hayas vivido una experiencia de <strong>5 estrellas</strong>. Tu opinión nos ayuda a que más amantes del buen sabor nos conozcan.
+          </p>
+
+          <!-- BANNER DE GRATIFICACIÓN INMEDIATA (Configurable por restaurante) -->
+          <div id="immediate-reward-card" class="p-4 bg-gradient-to-r from-amber-500/15 via-amber-500/20 to-amber-500/10 border-2 border-dashed border-amber-500/60 rounded-2xl text-left hidden animate-fadeIn">
+            <div class="flex items-start gap-3">
+              <span class="text-3xl flex-shrink-0 animate-bounce">🎁</span>
+              <div>
+                <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-amber-600 text-white mb-1 shadow-sm">
+                  Beneficio Inmediato en tu Mesa
+                </span>
+                <p id="immediate-reward-display" class="text-xs sm:text-sm font-extrabold text-amber-950 leading-snug"></p>
+                <p class="text-[11px] text-amber-900/80 mt-1 font-medium">
+                  👉 Publica tu reseña de 5★ en Google Maps y muéstrale esta pantalla a tu mesero o en caja para reclamarlo.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Previsualización del Comentario para copiar -->
+          <div id="comment-preview-box" class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-left hidden">
+            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+              Tu reseña lista para pegar:
+            </span>
+            <p id="comment-preview-text" class="text-xs text-slate-700 italic font-medium"></p>
+          </div>
+
+          <!-- BOTÓN PRINCIPAL: COPIAR Y GOOGLE MAPS -->
+          <div class="pt-2">
+            <button id="copy-and-google-btn" class="pulse-glow w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white font-extrabold text-sm sm:text-base shadow-xl shadow-amber-600/30 transition transform active:scale-98 flex items-center justify-center gap-2">
+              <span>⭐</span>
+              <span>Copiar y Calificar en Google Maps</span>
+              <span>📍</span>
+            </button>
+            <p class="text-[11px] text-slate-400 mt-2">
+              (Se copiará tu comentario al portapapeles y se abrirá Google Maps en 1 toque)
+            </p>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100">
+            <p class="text-xs text-emerald-700 font-semibold">
+              🎁 ¡Tus datos han sido registrados en nuestro Club de Cumpleaños!
+            </p>
+          </div>
+        </div>
+
+        <!-- RAMA B: 1 A 4 ESTRELLAS (BLINDAJE INTERNO / SOPORTE) -->
+        <div id="branch-internal-feedback" class="text-center py-4 space-y-4 hidden">
+          <div class="w-16 h-16 mx-auto rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-3xl shadow-inner">
+            🤝
+          </div>
+
+          <h2 class="text-xl font-bold text-slate-900">
+            Gracias por tu sinceridad, <span id="internal-client-name"></span>
+          </h2>
+
+          <p class="text-sm text-slate-600 leading-relaxed px-2">
+            En <strong id="internal-rest-name">nuestro restaurante</strong> nos esforzamos por la excelencia y lamentamos sinceramente no haber superado tus expectativas hoy.
+          </p>
+
+          <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-left text-xs text-slate-600 space-y-2">
+            <div class="flex items-center gap-2 text-slate-800 font-semibold">
+              <span class="text-emerald-600">✓</span>
+              <span>Tus comentarios fueron enviados en privado a la gerencia</span>
+            </div>
+            <p class="text-[11px] text-slate-500">
+              Analizaremos tu reporte para corregir inmediatamente cualquier falla en el servicio o preparación.
+            </p>
+          </div>
+
+          <!-- Opción de Contacto Gerencial -->
+          <div class="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-center space-y-3">
+            <p class="text-xs font-bold text-amber-900">
+              ¿Deseas que nuestro administrador te contacte por WhatsApp para atender tu caso y compensarte?
+            </p>
+            <div class="flex gap-2 justify-center">
+              <button type="button" id="contact-yes-btn" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shadow-sm">
+                Sí, por favor
+              </button>
+              <button type="button" id="contact-no-btn" class="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-medium hover:bg-slate-50 transition">
+                No, solo mi opinión
+              </button>
+            </div>
+            <p id="contact-feedback-msg" class="text-xs font-bold text-emerald-700 hidden"></p>
+          </div>
+
+          <div class="pt-2">
+            <p class="text-xs text-slate-400">
+              Tu opinión es confidencial y nos impulsa a ser mejores cada día.
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Pie de página del cliente -->
+    <div class="text-center mt-6 text-xs text-slate-400">
+      Desarrollado para la excelencia gastronómica • <button onclick="openHabeasModal()" class="underline hover:text-slate-600">Habeas Data</button>
+    </div>
+  </main>
+
+  <!-- ========================================== -->
+  <!-- VISTA 2: PANEL DE ADMINISTRACIÓN           -->
+  <!-- ========================================== -->
+  <main id="admin-view" class="flex-1 w-full max-w-6xl mx-auto p-4 sm:p-6 hidden">
+    
+    <!-- Banner Superior Admin -->
+    <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 mb-8 shadow-xl relative overflow-hidden">
+      <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 mb-3">
+            SuperAdmin Multi-Restaurante
+          </span>
+          <h1 class="text-2xl sm:text-3xl font-black tracking-tight">
+            Gestor de Encuestas & Blindaje de Reputación
+          </h1>
+          <p class="text-slate-300 text-xs sm:text-sm mt-1 max-w-xl">
+            Administra tus restaurantes clientes, personaliza sus colores y preguntas, genera sus códigos QR y conecta sus hojas de Google Sheets.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <button onclick="AdminApp.openModal()" class="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-2xl shadow-lg shadow-amber-500/20 text-xs sm:text-sm transition flex items-center gap-2">
+            <span>+</span> <span>Nuevo Restaurante</span>
+          </button>
+          <button onclick="AdminApp.openSheetsModal()" class="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-medium rounded-2xl border border-white/20 text-xs sm:text-sm transition flex items-center gap-2">
+            <span>📜</span> <span>Conector Google Sheets</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TARJETAS DE MÉTRICAS -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Total Encuestas</span>
+        <div class="flex items-baseline gap-2">
+          <span id="stat-total-surveys" class="text-2xl sm:text-3xl font-black text-slate-900">0</span>
+          <span class="text-xs text-slate-400 font-medium">respuestas</span>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+        <span class="text-xs font-bold text-emerald-600 uppercase tracking-wider block mb-1">5★ a Google Maps</span>
+        <div class="flex items-baseline gap-2">
+          <span id="stat-five-stars" class="text-2xl sm:text-3xl font-black text-emerald-600">0 (0%)</span>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+        <span class="text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">Quejas Blindadas (1-4★)</span>
+        <div class="flex items-baseline gap-2">
+          <span id="stat-low-stars" class="text-2xl sm:text-3xl font-black text-amber-600">0</span>
+          <span class="text-xs text-slate-400 font-medium">privadas</span>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+        <span class="text-xs font-bold text-indigo-600 uppercase tracking-wider block mb-1">Cumpleañeros este Mes</span>
+        <div class="flex items-baseline gap-2">
+          <span id="stat-birthdays" class="text-2xl sm:text-3xl font-black text-indigo-600">0</span>
+          <span class="text-xs text-slate-400 font-medium">listos para promo</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LISTADO DE RESTAURANTES AFILIADOS -->
+    <div class="mb-4 flex items-center justify-between">
+      <div>
+        <h2 class="text-lg font-bold text-slate-800">Tus Restaurantes Afiliados</h2>
+        <p class="text-xs text-slate-500">Cada restaurante cuenta con su propio enlace y código QR independiente.</p>
+      </div>
+    </div>
+
+    <div id="restaurants-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Inyectado dinámicamente con JS -->
+    </div>
+
+    <!-- ============================================== -->
+    <!-- BANDEJA DE CLIENTES Y ENCUESTAS (CRM EN VIVO)  -->
+    <!-- ============================================== -->
+    <div class="mt-12 mb-4 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <h2 class="text-lg font-bold text-slate-800">📋 Bandeja de Clientes & Encuestas Recibidas</h2>
+          <span id="submissions-count-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+            0 registros
+          </span>
+        </div>
+        <p class="text-xs text-slate-500">Consulta los datos de los clientes, sus calificaciones, comentarios y escríbeles por WhatsApp con 1 clic.</p>
+      </div>
+
+      <!-- Filtros y Acciones -->
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Filtro por Restaurante -->
+        <select id="table-filter-restaurant" onchange="AdminApp.renderSubmissionsTable()" class="px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white font-medium outline-none">
+          <option value="all">Todos los Restaurantes</option>
+        </select>
+
+        <!-- Filtro por Calificación -->
+        <select id="table-filter-type" onchange="AdminApp.renderSubmissionsTable()" class="px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white font-medium outline-none">
+          <option value="all">Todas las Calificaciones</option>
+          <option value="5star">Solo 5★ a Google Maps</option>
+          <option value="lowstar">Solo Quejas Blindadas (1-4★)</option>
+          <option value="birthday">🎂 Cumpleañeros este Mes</option>
+          <option value="contact">🚨 Solicita Contacto</option>
+        </select>
+
+        <!-- Filtro Fecha a Fecha -->
+        <div class="flex items-center gap-1.5 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs shadow-sm">
+          <span class="text-slate-400 font-bold text-[11px]">Desde:</span>
+          <input type="date" id="table-filter-start-date" onchange="AdminApp.renderSubmissionsTable()" class="border-0 p-0 text-xs font-mono outline-none text-slate-700 bg-transparent cursor-pointer">
+          <span class="text-slate-300 font-light">|</span>
+          <span class="text-slate-400 font-bold text-[11px]">Hasta:</span>
+          <input type="date" id="table-filter-end-date" onchange="AdminApp.renderSubmissionsTable()" class="border-0 p-0 text-xs font-mono outline-none text-slate-700 bg-transparent cursor-pointer">
+          <button type="button" onclick="AdminApp.resetDateFilters()" class="text-slate-400 hover:text-rose-600 ml-1 text-xs font-bold transition" title="Limpiar filtro de fechas">✕</button>
+        </div>
+
+        <!-- Botones de Acción -->
+        <button onclick="AdminApp.exportToCSV()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5" title="Exportar a Excel">
+          <span>📥</span> <span>Exportar Excel</span>
+        </button>
+        <button onclick="AdminApp.clearTestSubmissions()" class="px-3 py-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-500 rounded-xl text-xs font-medium transition" title="Limpiar respuestas de prueba">
+          🗑️
+        </button>
+      </div>
+    </div>
+
+    <!-- Tabla Responsive -->
+    <div class="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden mb-12">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              <th class="p-3">Fecha y Hora</th>
+              <th class="p-3">Restaurante</th>
+              <th class="p-3">Cliente</th>
+              <th class="p-3">WhatsApp</th>
+              <th class="p-3">Cumpleaños</th>
+              <th class="p-3 text-center">Calificación</th>
+              <th class="p-3">Comentario</th>
+              <th class="p-3 text-right">Destino</th>
+            </tr>
+          </thead>
+          <tbody id="submissions-table-body" class="divide-y divide-slate-100">
+            <!-- Renderizado dinámico -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- ========================================== -->
+  <!-- MODAL: CREAR / EDITAR RESTAURANTE          -->
+  <!-- ========================================== -->
+  <div id="restaurant-edit-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto hidden">
+    <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-2xl w-full my-8 overflow-hidden animate-fadeIn">
+      
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <h3 id="modal-title" class="font-extrabold text-slate-800 text-lg">Nuevo Restaurante</h3>
+        <button onclick="AdminApp.closeModal()" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-600 text-sm">✕</button>
+      </div>
+
+      <form id="restaurant-modal-form" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Nombre -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Nombre Comercial *</label>
+            <input type="text" id="modal-rest-name" required placeholder="Ej. Pizzería Trattoria" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm">
+          </div>
+
+          <!-- Slug / ID -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Identificador URL (Slug) *</label>
+            <input type="text" id="modal-rest-slug" required placeholder="trattoria-bella" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm font-mono">
+            <span class="text-[10px] text-slate-400">Ejemplo: tuweb.com/?r=trattoria-bella</span>
+          </div>
+        </div>
+
+        <!-- Eslogan -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Eslogan o Subtítulo</label>
+          <input type="text" id="modal-rest-tagline" placeholder="La mejor pizza a la leña de la ciudad" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Logo URL -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">URL del Logo (PNG / JPG)</label>
+            <input type="url" id="modal-rest-logo" placeholder="https://..." class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm">
+          </div>
+
+          <!-- Color de Marca -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Color de Marca</label>
+            <div class="flex items-center gap-2">
+              <input type="color" id="modal-rest-color" value="#b45309" class="w-10 h-10 rounded-xl cursor-pointer border border-slate-300 p-0.5">
+              <input type="text" id="modal-rest-color-hex" value="#b45309" class="w-28 px-3 py-2 rounded-xl border border-slate-300 text-sm font-mono uppercase">
+            </div>
+          </div>
+        </div>
+
+        <!-- Enlace a Google Maps -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">
+            Enlace Directo de Reseña en Google Maps *
+          </label>
+          <input type="url" id="modal-rest-google" required placeholder="https://search.google.com/local/writereview?placeid=..." class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm">
+          <p class="text-[11px] text-slate-400 mt-1">
+            (El enlace oficial donde los clientes de 5 estrellas escribirán su reseña pública)
+          </p>
+        </div>
+
+        <!-- Gancho de Fidelización -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Gancho Promocional / Beneficio de Cumpleaños *</label>
+          <input type="text" id="modal-rest-reward" required placeholder="🎁 ¡Postre artesanal gratis en tu cumpleaños y 10% en tu próxima visita!" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm">
+        </div>
+
+        <!-- Gratificación Inmediata en Mesa (Opcional - Para asegurar reseñas de 5★) -->
+        <div class="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl space-y-2">
+          <label class="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" id="modal-rest-has-immediate" onchange="AdminApp.toggleImmediateRewardInput()" class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500">
+            <span class="text-xs font-bold text-amber-950">
+              ⚡ Ofrecer Gratificación Inmediata en la Mesa (Incentivo clave para que publiquen en Google)
+            </span>
+          </label>
+          <div id="modal-immediate-reward-wrapper" class="hidden pt-1 space-y-1">
+            <input type="text" id="modal-rest-immediate-text" placeholder="Ej. ☕ Muestra tu reseña al mesero y recibe hoy un café espresso de cortesía en tu mesa" class="w-full px-3 py-2.5 rounded-xl border border-amber-300 bg-white text-xs focus:ring-2 focus:ring-amber-500 outline-none">
+            <p class="text-[11px] text-slate-500 leading-relaxed">
+              Opciones populares: <em>"Un café espresso de cortesía hoy"</em>, <em>"10% de descuento en la cuenta de hoy"</em>, o <em>"Una porción de papas/galleta de cortesía"</em>.
+            </p>
+          </div>
+        </div>
+
+        <!-- Webhook Google Sheets -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">
+            URL de la Aplicación Web de Google Sheets (Webhook)
+          </label>
+          <input type="url" id="modal-rest-webhook" placeholder="https://script.google.com/macros/s/.../exec" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm font-mono">
+          <p class="text-[11px] text-slate-400 mt-1">
+            (Pega la URL que te genera el conector de Google Apps Script para guardar las respuestas en tiempo real)
+          </p>
+        </div>
+
+        <!-- Aspectos a evaluar (Dinámicos) -->
+        <div class="pt-3 border-t border-slate-100">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <span class="block text-xs font-bold text-slate-800">Aspectos a Evaluar en la Encuesta:</span>
+              <span class="text-[11px] text-slate-400">Personaliza los ítems que tus clientes calificarán (puedes agregar los que quieras).</span>
+            </div>
+            <button type="button" onclick="AdminApp.addAspectRow()" class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm">
+              <span>+</span> <span>Agregar Aspecto</span>
+            </button>
+          </div>
+          <div id="modal-aspects-list" class="space-y-2 max-h-56 overflow-y-auto p-1">
+            <!-- Inyectado dinámicamente con JS -->
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+          <button type="button" onclick="AdminApp.closeModal()" class="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-600 text-xs font-bold hover:bg-slate-50 transition">
+            Cancelar
+          </button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md transition">
+            Guardar Restaurante
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: ESTUDIO DE QR Y HABLADOR DE MESA    -->
+  <!-- ========================================== -->
+  <div id="qr-studio-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-hidden hidden">
+    <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-fadeIn">
+      
+      <!-- Modal Header (Fijo) -->
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 flex-shrink-0">
+        <div>
+          <h3 class="font-extrabold text-slate-800 text-base sm:text-lg">Estudio de Código QR y Hablador de Mesa</h3>
+          <p class="text-xs text-slate-500">Diseña, previsualiza y descarga los materiales listos para colocar en las mesas.</p>
+        </div>
+        <button onclick="QRStudio.closeStudio()" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-600 text-sm font-bold transition">✕</button>
+      </div>
+
+      <!-- Modal Body (2 Columnas Responsivas) -->
+      <div class="p-6 overflow-y-auto flex-1">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          <!-- Columna Izquierda: Controles y QR Individual (5 cols) -->
+          <div class="lg:col-span-5 space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Enlace del Código QR:</label>
+              <input type="text" id="qr-base-url-input" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono" oninput="QRStudio.renderStudio()">
+              <p class="text-[11px] text-slate-400 mt-1">Este enlace abrirá la encuesta personalizada en el celular del cliente.</p>
+            </div>
+
+            <!-- Previsualización del QR Individual -->
+            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col items-center justify-center">
+              <div id="qr-preview-canvas" class="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center"></div>
+              <span class="text-[11px] font-medium text-slate-500 mt-2">Código QR Digital</span>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="space-y-2">
+              <button onclick="QRStudio.downloadQR()" class="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow transition flex items-center justify-center gap-2">
+                <span>📥</span> <span>Descargar QR (PNG Alta Calidad)</span>
+              </button>
+              <button onclick="QRStudio.printTableTent()" class="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center justify-center gap-2">
+                <span>🖨️</span> <span>Imprimir Hablador de Mesa (Acrílico)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Columna Derecha: Previsualización del Hablador de Mesa (7 cols) -->
+          <div class="lg:col-span-7 flex flex-col items-center">
+            <span class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 text-center">
+              Vista Previa del Hablador (Acrílico de Mesa):
+            </span>
+
+            <div class="w-full flex justify-center p-3 sm:p-4 bg-slate-100 rounded-2xl border border-slate-200">
+              <!-- TARJETA IMPRIMIBLE -->
+              <div id="printable-table-tent" class="w-[280px] bg-white rounded-2xl p-4 border-2 border-amber-600 shadow-md flex flex-col items-center text-center justify-between space-y-2.5">
+                
+                <!-- Cabecera Hablador -->
+                <div class="flex flex-col items-center">
+                  <div class="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 p-1.5 flex items-center justify-center mb-1 shadow-inner">
+                    <img id="tent-logo" src="https://cdn-icons-png.flaticon.com/512/992/992747.png" alt="Logo" class="max-w-full max-h-full object-contain">
+                  </div>
+                  <h3 id="tent-rest-name" class="font-black text-slate-900 text-sm uppercase tracking-tight line-clamp-1">
+                    Pastelería & Café Milhojas
+                  </h3>
+                </div>
+
+                <!-- Banner de Beneficio -->
+                <div class="w-full px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs font-bold">
+                  <span class="block text-xs mb-0.5">✨ ¡ESCANEA Y GANA! ✨</span>
+                  <span id="tent-reward-text" class="font-normal block text-[10px] leading-tight">
+                    🎁 Postre de cortesía en tu semana de cumpleaños y sorpresas VIP
+                  </span>
+                </div>
+
+                <!-- El QR Centrado -->
+                <div class="p-2 bg-white border border-slate-900 rounded-xl shadow-sm">
+                  <div id="tent-qr-container" class="flex items-center justify-center"></div>
+                  <span class="text-[9px] font-bold text-slate-800 tracking-wider uppercase block mt-0.5">
+                    Apunta tu cámara aquí
+                  </span>
+                </div>
+
+                <!-- Pasos rápidos -->
+                <div class="w-full text-left bg-slate-50 p-2 rounded-lg border border-slate-100 text-[9px] text-slate-600 space-y-0.5">
+                  <div><strong>1.</strong> Escanea con la cámara de tu celular.</div>
+                  <div><strong>2.</strong> Déjanos tus datos para tu beneficio.</div>
+                  <div><strong>3.</strong> Califícanos en 30 segundos.</div>
+                </div>
+
+                <!-- Pie -->
+                <div class="text-[8px] text-slate-400">
+                  ¡Gracias por tu visita! • Tu opinión nos hace crecer
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: CÓDIGO CONECTOR GOOGLE SHEETS       -->
+  <!-- ========================================== -->
+  <div id="sheets-code-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto hidden">
+    <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-3xl w-full my-8 overflow-hidden animate-fadeIn">
+      
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">📊</span>
+          <h3 class="font-extrabold text-slate-800 text-lg">Conector Oficial de Google Sheets (Apps Script)</h3>
+        </div>
+        <button onclick="AdminApp.closeSheetsModal()" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-600 text-sm">✕</button>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl text-xs text-indigo-900 space-y-1.5 leading-relaxed">
+          <p class="font-bold text-sm">¿Cómo conectar Google Sheets en 2 minutos?</p>
+          <ol class="list-decimal list-inside space-y-1 text-slate-700">
+            <li>Abre una hoja en blanco en <strong>Google Sheets</strong> (Drive).</li>
+            <li>En el menú superior ve a: <strong>Extensiones → Apps Script</strong>.</li>
+            <li>Borra todo el texto existente y pega el código que aparece abajo.</li>
+            <li>Haz clic en el botón azul <strong>Implementar → Nueva implementación</strong>.</li>
+            <li>Elige tipo: <strong>Aplicación web</strong>, Ejecutar como: <strong>Yo</strong>, Acceso: <strong>Cualquier persona</strong>.</li>
+            <li>Copia la <strong>URL de la aplicación web</strong> generada y pégala en la casilla Webhook de tu restaurante.</li>
+          </ol>
+        </div>
+
+        <div class="relative">
+          <button id="copy-script-btn" onclick="AdminApp.copyAppsScriptCode()" class="absolute top-3 right-3 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow transition">
+            📋 Copiar Código Completo
+          </button>
+          <pre id="apps-script-code-display" class="bg-slate-900 text-slate-200 p-4 rounded-2xl text-xs font-mono max-h-72 overflow-y-auto"></pre>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: HABEAS DATA / PRIVACIDAD            -->
+  <!-- ========================================== -->
+  <div id="habeas-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto hidden">
+    <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 animate-fadeIn">
+      <h3 class="font-bold text-slate-800 text-base mb-3">Política de Tratamiento de Datos (Habeas Data)</h3>
+      <div class="text-xs text-slate-600 space-y-2 max-h-60 overflow-y-auto p-2 bg-slate-50 rounded-xl mb-4 leading-relaxed">
+        <p>En cumplimiento de las leyes de protección de datos personales, el titular autoriza expresamente que los datos suministrados (Nombre, Teléfono y Fecha de Cumpleaños) sean incorporados en la base de datos del restaurante y tratados con la finalidad de:</p>
+        <ul class="list-disc list-inside space-y-1">
+          <li>Gestionar y redimir beneficios exclusivos de fidelización y felicitaciones en el mes de su cumpleaños.</li>
+          <li>Atender quejas, reclamos o sugerencias respecto al servicio prestado.</li>
+          <li>Realizar encuestas de satisfacción interna.</li>
+        </ul>
+        <p>El titular podrá en cualquier momento ejercer sus derechos de conocer, actualizar o rectificar sus datos o revocar su autorización enviando un mensaje directo al WhatsApp del establecimiento.</p>
+      </div>
+      <button onclick="closeHabeasModal()" class="w-full py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition">
+        Entendido y Aceptar
+      </button>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- SCRIPTS DE LA APLICACIÓN                   -->
+  <!-- ========================================== -->
+  <script src="js/qrcode.js"></script>
+  <script src="js/sheets-template.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/survey.js"></script>
+  <script src="js/qr-studio.js"></script>
+  <script src="js/admin.js"></script>
+
+  <script>
+    // Enrutador visual simple (Cliente vs Admin)
+    function switchView(viewName) {
+      const clientView = document.getElementById('client-view');
+      const adminView = document.getElementById('admin-view');
+      const btnClient = document.getElementById('nav-btn-client');
+      const btnAdmin = document.getElementById('nav-btn-admin');
+
+      if (viewName === 'admin') {
+        clientView.classList.add('hidden');
+        adminView.classList.remove('hidden');
+
+        btnAdmin.classList.add('bg-amber-600', 'text-white', 'shadow-sm');
+        btnAdmin.classList.remove('text-slate-600', 'hover:bg-slate-100');
+
+        btnClient.classList.remove('bg-amber-600', 'text-white', 'shadow-sm');
+        btnClient.classList.add('text-slate-600', 'hover:bg-slate-100');
+
+        window.AdminApp.init();
+      } else {
+        adminView.classList.add('hidden');
+        clientView.classList.remove('hidden');
+
+        btnClient.classList.add('bg-amber-600', 'text-white', 'shadow-sm');
+        btnClient.classList.remove('text-slate-600', 'hover:bg-slate-100');
+
+        btnAdmin.classList.remove('bg-amber-600', 'text-white', 'shadow-sm');
+        btnAdmin.classList.add('text-slate-600', 'hover:bg-slate-100');
+
+        window.SurveyApp.init();
+      }
+    }
+
+    function openHabeasModal() {
+      document.getElementById('habeas-modal').classList.remove('hidden');
+    }
+    function closeHabeasModal() {
+      document.getElementById('habeas-modal').classList.add('hidden');
+    }
+
+    // Inicialización al cargar la página
+    window.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('admin') === 'true' || window.location.hash === '#/admin') {
+        switchView('admin');
+      } else {
+        switchView('client');
+      }
+    });
+  </script>
+</body>
+</html>
+
