@@ -869,6 +869,22 @@
           </button>
           <pre id="apps-script-code-display" class="bg-slate-900 text-slate-200 p-4 rounded-2xl text-xs font-mono max-h-72 overflow-y-auto"></pre>
         </div>
+
+        <!-- Conexión Central con la Nube -->
+        <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+          <label class="block text-xs font-bold text-slate-800 mb-1">
+            🔗 Pega aquí la URL de la Aplicación Web generada (Servidor Central en la Nube):
+          </label>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input type="url" id="central-webhook-input" placeholder="https://script.google.com/macros/s/.../exec" class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+            <button onclick="AdminApp.saveCentralWebhook()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm">
+              <span>💾</span> <span>Guardar y Sincronizar Todo</span>
+            </button>
+          </div>
+          <p id="central-sync-status" class="text-[11px] text-slate-500 mt-1.5">
+            Al guardar, todos tus restaurantes y encuestas se respaldarán y sincronizarán automáticamente con Google Sheets.
+          </p>
+        </div>
       </div>
 
     </div>
@@ -1474,25 +1490,77 @@
   <script>
   /* === PLANTILLA OFICIAL GOOGLE APPS SCRIPT === */
 // Plantilla y generador del script oficial de Google Apps Script
-// para conectar la aplicación web con Google Sheets sin costo alguno.
+// para conectar la aplicación web con Google Sheets como Base de Datos Central en la Nube
+// y receptor de encuestas en tiempo real (100% gratis).
 
 const GOOGLE_APPS_SCRIPT_CODE = `/**
- * ============================================================
- * CONECTOR OFICIAL: QR ENCUESTAS & REPUTACIÓN A GOOGLE SHEETS
- * ============================================================
- * Este script recibe automáticamente las encuestas y registros
- * de los clientes y los guarda en tiempo real en esta hoja.
+ * =======================================================================
+ * SERVIDOR CENTRAL EN LA NUBE & CRM: QR ENCUESTAS MULTI-RESTAURANTE
+ * =======================================================================
+ * Este script cumple dos funciones automáticas en tu Google Sheet:
+ * 1. Base de Datos Central de Restaurantes (guarda y sincroniza todos tus clientes).
+ * 2. Bandeja de Entrada de Encuestas y Registros VIP de clientes en vivo.
  *
  * INSTRUCCIONES:
  * 1. Pega este código completo en: Extensiones > Apps Script.
- * 2. Clic en el botón "Implementar" (arriba a la derecha) > "Nueva implementación".
+ * 2. Clic en "Implementar" (arriba a la derecha) > "Nueva implementación".
  * 3. Selecciona tipo: "Aplicación web".
- * 4. Configura:
- *    - Ejecutar como: "Yo" (tu cuenta)
- *    - Quién tiene acceso: "Cualquier usuario" (Anyone)
- * 5. Clic en "Implementar", autoriza los permisos y COPIA la "URL de la aplicación web".
- * 6. Pega esa URL en el Panel de Administración de tu sistema QR.
+ * 4. Configuración:
+ *    - Ejecutar como: "Yo" (tu cuenta de Google)
+ *    - Quién tiene acceso: "Cualquier persona" (Anyone)
+ * 5. Clic en "Implementar", autoriza los permisos y COPIA la URL de la aplicación web.
+ * 6. Pégala en el Panel de Administración de tu plataforma de encuestas.
  */
+
+function doGet(e) {
+  var action = (e && e.parameter && e.parameter.action) || "";
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // 1. Obtener lista completa de restaurantes clientes
+  if (action === "getRestaurants") {
+    var restSheet = ss.getSheetByName("Restaurantes");
+    if (!restSheet || restSheet.getLastRow() <= 1) {
+      return respondJSON({ status: "success", restaurants: [] });
+    }
+
+    var rows = restSheet.getRange(2, 1, restSheet.getLastRow() - 1, 13).getValues();
+    var list = [];
+
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r[0]) continue; // ID vacío
+
+      var questions = [];
+      try {
+        questions = r[10] ? JSON.parse(r[10]) : [];
+      } catch (err) {}
+
+      list.push({
+        id: String(r[0]),
+        name: String(r[1] || ""),
+        tagline: String(r[2] || ""),
+        logo: String(r[3] || ""),
+        primaryColor: String(r[4] || "#b45309"),
+        accentColor: String(r[5] || "#f59e0b"),
+        googleMapsUrl: String(r[6] || ""),
+        rewardText: String(r[7] || ""),
+        hasImmediateReward: r[8] === true || r[8] === "SÍ" || r[8] === "SI",
+        immediateRewardText: String(r[9] || ""),
+        whatsappContact: String(r[11] || ""),
+        questions: questions,
+        sheetsWebhookUrl: String(r[12] || "")
+      });
+    }
+
+    return respondJSON({ status: "success", restaurants: list });
+  }
+
+  // 2. Ping de verificación del servidor
+  return respondJSON({
+    status: "ok",
+    message: "Servidor Central de Encuestas y Restaurantes activo en Google Sheets"
+  });
+}
 
 function doPost(e) {
   var lock = LockService.getScriptLock();
@@ -1500,16 +1568,133 @@ function doPost(e) {
 
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName("Encuestas");
 
-    // Si la hoja "Encuestas" no existe, la creamos
-    if (!sheet) {
-      sheet = ss.insertSheet("Encuestas");
+    // Leer datos recibidos
+    var data = {};
+    if (e.postData && e.postData.contents) {
+      try {
+        data = JSON.parse(e.postData.contents);
+      } catch (err) {
+        data = e.parameter || {};
+      }
+    } else {
+      data = e.parameter || {};
     }
 
-    // Si la hoja está vacía, creamos los encabezados formateados
-    if (sheet.getLastRow() === 0) {
-      var headers = [
+    var action = data.action || "";
+
+    // ========================================================
+    // CASO A: GUARDAR O ACTUALIZAR UN RESTAURANTE EN LA NUBE
+    // ========================================================
+    if (action === "saveRestaurant" && data.restaurant) {
+      var r = data.restaurant;
+      var restSheet = ss.getSheetByName("Restaurantes");
+      if (!restSheet) {
+        restSheet = ss.insertSheet("Restaurantes");
+      }
+
+      // Si la hoja está vacía, crear encabezados
+      if (restSheet.getLastRow() === 0) {
+        var restHeaders = [
+          "ID / Slug",
+          "Nombre Restaurante",
+          "Eslogan",
+          "Logo URL",
+          "Color Primario",
+          "Color Acento",
+          "Enlace Google Maps",
+          "Gancho VIP Cumpleaños",
+          "Premio Inmediato (SÍ/NO)",
+          "Texto Premio Mesa",
+          "Preguntas (JSON)",
+          "WhatsApp Gerencia",
+          "Webhook Específico",
+          "Última Actualización"
+        ];
+        var hRange = restSheet.getRange(1, 1, 1, restHeaders.length);
+        hRange.setValues([restHeaders]);
+        hRange.setBackground("#1e293b");
+        hRange.setFontColor("#ffffff");
+        hRange.setFontWeight("bold");
+        restSheet.setFrozenRows(1);
+      }
+
+      var questionsJson = "[]";
+      try {
+        questionsJson = JSON.stringify(r.questions || []);
+      } catch (e) {}
+
+      var nowFormatted = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+
+      var restRow = [
+        String(r.id || "").trim(),
+        String(r.name || ""),
+        String(r.tagline || ""),
+        String(r.logo || ""),
+        String(r.primaryColor || "#b45309"),
+        String(r.accentColor || "#f59e0b"),
+        String(r.googleMapsUrl || ""),
+        String(r.rewardText || ""),
+        r.hasImmediateReward ? "SÍ" : "NO",
+        String(r.immediateRewardText || ""),
+        questionsJson,
+        String(r.whatsappContact || ""),
+        String(r.sheetsWebhookUrl || ""),
+        nowFormatted
+      ];
+
+      // Buscar si el restaurante ya existe por ID para actualizarlo
+      var foundRow = -1;
+      var lastRow = restSheet.getLastRow();
+      if (lastRow > 1) {
+        var ids = restSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+        for (var k = 0; k < ids.length; k++) {
+          if (String(ids[k][0]).toLowerCase() === String(r.id).toLowerCase()) {
+            foundRow = k + 2; // Índice real de fila (1-based + offset)
+            break;
+          }
+        }
+      }
+
+      if (foundRow > 0) {
+        restSheet.getRange(foundRow, 1, 1, restRow.length).setValues([restRow]);
+      } else {
+        restSheet.appendRow(restRow);
+      }
+
+      return respondJSON({
+        status: "success",
+        message: "Restaurante '" + r.name + "' guardado y sincronizado en Google Sheets"
+      });
+    }
+
+    // ========================================================
+    // CASO B: ELIMINAR UN RESTAURANTE
+    // ========================================================
+    if (action === "deleteRestaurant" && data.id) {
+      var rSheet = ss.getSheetByName("Restaurantes");
+      if (rSheet && rSheet.getLastRow() > 1) {
+        var rIds = rSheet.getRange(2, 1, rSheet.getLastRow() - 1, 1).getValues();
+        for (var m = 0; m < rIds.length; m++) {
+          if (String(rIds[m][0]).toLowerCase() === String(data.id).toLowerCase()) {
+            rSheet.deleteRow(m + 2);
+            break;
+          }
+        }
+      }
+      return respondJSON({ status: "success", message: "Restaurante eliminado de Google Sheets" });
+    }
+
+    // ========================================================
+    // CASO C: REGISTRAR ENCUESTA RECIBIDA (CRM)
+    // ========================================================
+    var encSheet = ss.getSheetByName("Encuestas");
+    if (!encSheet) {
+      encSheet = ss.insertSheet("Encuestas");
+    }
+
+    if (encSheet.getLastRow() === 0) {
+      var encHeaders = [
         "Fecha y Hora",
         "Restaurante",
         "Nombre del Cliente",
@@ -1521,26 +1706,12 @@ function doPost(e) {
         "¿Fue a Google Maps?",
         "¿Solicita Contacto Gerencial?"
       ];
-
-      var headerRange = sheet.getRange(1, 1, 1, headers.length);
-      headerRange.setValues([headers]);
-      headerRange.setBackground("#2c3e50");
-      headerRange.setFontColor("#ffffff");
-      headerRange.setFontWeight("bold");
-      headerRange.setHorizontalAlignment("center");
-      sheet.setFrozenRows(1);
-    }
-
-    // Leer los datos recibidos
-    var data = {};
-    if (e.postData && e.postData.contents) {
-      try {
-        data = JSON.parse(e.postData.contents);
-      } catch (err) {
-        data = e.parameter;
-      }
-    } else {
-      data = e.parameter;
+      var encHRange = encSheet.getRange(1, 1, 1, encHeaders.length);
+      encHRange.setValues([encHeaders]);
+      encHRange.setBackground("#0f172a");
+      encHRange.setFontColor("#ffffff");
+      encHRange.setFontWeight("bold");
+      encSheet.setFrozenRows(1);
     }
 
     var timestamp = new Date();
@@ -1553,63 +1724,74 @@ function doPost(e) {
       data.customerPhone || "N/A",
       data.customerBirthday || "N/A",
       data.ratingOverall || "-",
-      data.aspectsSummary || ("Cal: " + (data.ratingQuality || "-") + " | Ase: " + (data.ratingCleanliness || "-") + " | Ser: " + (data.ratingService || "-")),
+      data.aspectsSummary || "-",
       data.comment || "Sin comentario",
       data.wentToGoogle ? "SÍ (5★)" : "NO (Interno)",
       data.requestedContact ? "SÍ (Urgente)" : "No"
     ];
 
-    sheet.appendRow(row);
-
-    var lastRow = sheet.getLastRow();
+    encSheet.appendRow(row);
+    var newLastRow = encSheet.getLastRow();
     var overallRating = parseInt(data.ratingOverall, 10);
 
-    // Formato condicional visual rápido
+    // Formato condicional rápido de color
     if (overallRating === 5) {
-      sheet.getRange(lastRow, 6).setBackground("#d4edda").setFontColor("#155724"); // Verde suave
+      encSheet.getRange(newLastRow, 6).setBackground("#dcfce7").setFontColor("#15803d"); // Verde
     } else if (overallRating <= 3) {
-      sheet.getRange(lastRow, 6).setBackground("#f8d7da").setFontColor("#721c24"); // Rojo suave de alerta
+      encSheet.getRange(newLastRow, 6).setBackground("#fee2e2").setFontColor("#b91c1c"); // Rojo
     }
 
-    return ContentService.createTextOutput(JSON.stringify({
+    return respondJSON({
       status: "success",
       message: "Encuesta guardada con éxito en Google Sheets"
-    })).setMimeType(ContentService.MimeType.JSON);
+    });
 
   } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({
-      status: "error",
-      message: error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
-
+    return respondJSON({ status: "error", message: error.toString() });
   } finally {
     lock.releaseLock();
   }
 }
 
-function doGet(e) {
-  return ContentService.createTextOutput(JSON.stringify({
-    status: "ok",
-    message: "Conector activo y listo para recibir encuestas"
-  })).setMimeType(ContentService.MimeType.JSON);
+function respondJSON(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 `;
 
 window.GOOGLE_APPS_SCRIPT_CODE = GOOGLE_APPS_SCRIPT_CODE;
 
-
   </script>
   <script>
-  /* === GESTOR DE DATOS Y MULTI-RESTAURANTE === */
-// Gestión de datos, almacenamiento local y multi-restaurante
+  /* === GESTOR DE DATOS, NUBE Y SMART QR === */
+// Gestión de datos, almacenamiento local, nube (Google Sheets) y Smart QR Multi-Restaurante
 
 const DEFAULT_RESTAURANTS = [
+  {
+    id: 'ciudad-montes',
+    name: 'MILHOJAS VILLA DE LEYVA',
+    tagline: 'Tu satisfacción es lo primero',
+    logo: 'https://cdn-icons-png.flaticon.com/512/992/992747.png',
+    primaryColor: '#b45309', // Caramelo / Miel
+    accentColor: '#f59e0b',
+    googleMapsUrl: 'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4',
+    rewardText: 'Calificanos!! y se parte de nuestros clientes vip donde encontraras ofertas y sorpresas exclusivas',
+    hasImmediateReward: true,
+    immediateRewardText: '☕ Muestra tu reseña al mesero y recibe hoy un café espresso de cortesía en tu mesa',
+    sheetsWebhookUrl: '',
+    whatsappContact: '+573001234567',
+    questions: [
+      { id: 'quality', label: 'Sabor y Calidad de la Pastelería', icon: '🍰' },
+      { id: 'cleanliness', label: 'Aseo y Ambiente del Café', icon: '✨' },
+      { id: 'service', label: 'Atención y Rapidez del Personal', icon: '☕' }
+    ]
+  },
   {
     id: 'milhojas',
     name: 'Pastelería & Café Milhojas',
     tagline: 'Tradición artesanal y momentos dulces',
     logo: 'https://cdn-icons-png.flaticon.com/512/992/992747.png',
-    primaryColor: '#b45309', // Caramelo / Miel
+    primaryColor: '#b45309',
     accentColor: '#f59e0b',
     googleMapsUrl: 'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4',
     rewardText: '🎁 ¡Postre artesanal de cortesía en tu semana de cumpleaños y beneficios VIP exclusivos!',
@@ -1646,10 +1828,27 @@ const DEFAULT_RESTAURANTS = [
 
 const STORAGE_KEYS = {
   RESTAURANTS: 'qr_restaurants_config_v1',
-  SUBMISSIONS: 'qr_submissions_cache_v1'
+  SUBMISSIONS: 'qr_submissions_cache_v1',
+  CENTRAL_WEBHOOK: 'qr_central_webhook_url_v1'
 };
 
 const StorageManager = {
+  // Obtener URL central de Google Sheets
+  getCentralWebhookUrl() {
+    try {
+      return (localStorage.getItem(STORAGE_KEYS.CENTRAL_WEBHOOK) || '').trim();
+    } catch (e) {
+      return '';
+    }
+  },
+
+  // Guardar URL central de Google Sheets
+  setCentralWebhookUrl(url) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.CENTRAL_WEBHOOK, (url || '').trim());
+    } catch (e) {}
+  },
+
   // Obtener lista completa de restaurantes
   getRestaurants() {
     try {
@@ -1679,12 +1878,18 @@ const StorageManager = {
 
   // Obtener un restaurante por slug / id
   getRestaurant(id) {
+    // 1. Primero intentar desempaquetar datos del QR inteligente si vienen en la URL
+    const smart = this.unpackSmartData();
+    if (smart && (!id || smart.id.toLowerCase() === id.toLowerCase())) {
+      return smart;
+    }
+
     const list = this.getRestaurants();
     return list.find(r => r.id.toLowerCase() === (id || '').toLowerCase()) || list[0];
   },
 
-  // Guardar o actualizar un restaurante individual
-  upsertRestaurant(restaurantData) {
+  // Guardar o actualizar un restaurante individual y sincronizar con la nube
+  upsertRestaurant(restaurantData, syncCloud = false) {
     const list = this.getRestaurants();
     const index = list.findIndex(r => r.id.toLowerCase() === restaurantData.id.toLowerCase());
 
@@ -1694,15 +1899,165 @@ const StorageManager = {
       list.push(restaurantData);
     }
     this.saveRestaurants(list);
+
+    if (syncCloud) {
+      this.pushRestaurantToCloud(restaurantData);
+    }
+
     return list;
   },
 
   // Eliminar restaurante
-  deleteRestaurant(id) {
+  deleteRestaurant(id, syncCloud = false) {
     let list = this.getRestaurants();
     list = list.filter(r => r.id.toLowerCase() !== id.toLowerCase());
     this.saveRestaurants(list);
+
+    if (syncCloud) {
+      this.deleteRestaurantFromCloud(id);
+    }
+
     return list;
+  },
+
+  // Sincronizar un restaurante individual con Google Sheets en la nube
+  async pushRestaurantToCloud(restaurant) {
+    const webhook = this.getCentralWebhookUrl() || (restaurant.sheetsWebhookUrl || '').trim();
+    if (!webhook || !webhook.startsWith('http')) return;
+
+    try {
+      await fetch(webhook, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'saveRestaurant',
+          restaurant: restaurant
+        })
+      });
+      console.log('☁️ Restaurante sincronizado con Google Sheets:', restaurant.name);
+    } catch (e) {
+      console.warn('No se pudo enviar restaurante a Google Sheets:', e);
+    }
+  },
+
+  // Eliminar restaurante de la nube
+  async deleteRestaurantFromCloud(id) {
+    const webhook = this.getCentralWebhookUrl();
+    if (!webhook || !webhook.startsWith('http')) return;
+
+    try {
+      await fetch(webhook, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'deleteRestaurant',
+          id: id
+        })
+      });
+    } catch (e) {}
+  },
+
+  // Traer restaurantes desde la nube (Google Sheets) a este dispositivo
+  async syncRestaurantsFromCloud() {
+    const webhook = this.getCentralWebhookUrl();
+    if (!webhook || !webhook.startsWith('http')) {
+      return { success: false, message: 'No hay URL Central de Google Sheets configurada.' };
+    }
+
+    try {
+      const url = webhook + (webhook.includes('?') ? '&' : '?') + 'action=getRestaurants';
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Error HTTP ' + response.status);
+
+      const data = await response.json();
+      if (data && data.status === 'success' && Array.isArray(data.restaurants)) {
+        if (data.restaurants.length > 0) {
+          const current = this.getRestaurants();
+          // Fusionar sin perder datos locales
+          data.restaurants.forEach(cloudRest => {
+            const idx = current.findIndex(c => c.id.toLowerCase() === cloudRest.id.toLowerCase());
+            if (idx >= 0) {
+              current[idx] = { ...current[idx], ...cloudRest };
+            } else {
+              current.push(cloudRest);
+            }
+          });
+          this.saveRestaurants(current);
+        }
+        return { success: true, count: data.restaurants.length };
+      }
+      return { success: false, message: 'La nube no devolvió restaurantes válidos.' };
+    } catch (e) {
+      console.warn('Error sincronizando desde la nube:', e);
+      return { success: false, message: e.toString() };
+    }
+  },
+
+  // Construir URL inteligente (lleva la marca y configuración incrustada para carga instantánea en cualquier celular)
+  buildSmartUrl(restaurant, origin) {
+    let base = origin || window.location.origin;
+    if (!base || base === 'null' || window.location.protocol === 'file:') {
+      base = 'https://encuestas-comercios.vercel.app';
+    }
+    const compact = {
+      i: restaurant.id,
+      n: restaurant.name,
+      t: restaurant.tagline || '',
+      l: restaurant.logo || '',
+      p: restaurant.primaryColor || '#b45309',
+      a: restaurant.accentColor || '#f59e0b',
+      g: restaurant.googleMapsUrl || '',
+      r: restaurant.rewardText || '',
+      ir: restaurant.hasImmediateReward ? 1 : 0,
+      it: restaurant.immediateRewardText || '',
+      w: restaurant.whatsappContact || '',
+      q: (restaurant.questions || []).map(q => ({ i: q.id, l: q.label, ic: q.icon })),
+      s: restaurant.sheetsWebhookUrl || ''
+    };
+    try {
+      const jsonStr = JSON.stringify(compact);
+      // Codificación UTF-8 segura en Base64
+      const b64 = btoa(encodeURIComponent(jsonStr).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
+      return `${base}/?r=${restaurant.id}&d=${encodeURIComponent(b64)}`;
+    } catch (e) {
+      return `${base}/?r=${restaurant.id}`;
+    }
+  },
+
+  // Desempaquetar datos del QR inteligente al escanear desde un celular
+  unpackSmartData() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const encoded = params.get('d');
+      if (!encoded) return null;
+      const b64 = decodeURIComponent(encoded);
+      const jsonStr = decodeURIComponent(Array.prototype.map.call(atob(b64), (c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+      const p = JSON.parse(jsonStr);
+      const r = {
+        id: p.i,
+        name: p.n,
+        tagline: p.t,
+        logo: p.l,
+        primaryColor: p.p,
+        accentColor: p.a,
+        googleMapsUrl: p.g,
+        rewardText: p.r,
+        hasImmediateReward: !!p.ir,
+        immediateRewardText: p.it,
+        whatsappContact: p.w,
+        questions: (p.q || []).map(q => ({ id: q.i, label: q.l, icon: q.ic })),
+        sheetsWebhookUrl: p.s
+      };
+      if (r.id && r.name) {
+        this.upsertRestaurant(r, false);
+        return r;
+      }
+    } catch (e) {
+      console.warn('Error desempaquetando restaurante desde QR:', e);
+    }
+    return null;
   },
 
   // Obtener todas las respuestas registradas localmente (con autoreparación de datos de prueba)
@@ -1735,16 +2090,16 @@ const StorageManager = {
   async updateSubmission(id, patch) {
     try {
       const list = this.getSubmissions();
-      // Si no hay id, actualizar la más reciente
       const index = id ? list.findIndex(s => s.id === id) : 0;
       if (index >= 0 && list[index]) {
         list[index] = { ...list[index], ...patch };
         localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(list));
 
         // Si hay webhook de Google Sheets, enviar actualización
-        if (list[index].sheetsWebhookUrl && list[index].sheetsWebhookUrl.trim().startsWith('http')) {
+        const webhook = list[index].sheetsWebhookUrl || this.getCentralWebhookUrl();
+        if (webhook && webhook.trim().startsWith('http')) {
           try {
-            await fetch(list[index].sheetsWebhookUrl.trim(), {
+            await fetch(webhook.trim(), {
               method: 'POST',
               mode: 'no-cors',
               headers: { 'Content-Type': 'application/json' },
@@ -1783,12 +2138,13 @@ const StorageManager = {
       console.error('Error guardando en caché local:', e);
     }
 
-    // 2. Enviar a Google Sheets si hay webhook configurado
-    if (payload.sheetsWebhookUrl && payload.sheetsWebhookUrl.trim().startsWith('http')) {
+    // 2. Enviar a Google Sheets si hay webhook configurado (del restaurante o central)
+    const targetWebhook = (payload.sheetsWebhookUrl || '').trim() || this.getCentralWebhookUrl();
+    if (targetWebhook && targetWebhook.startsWith('http')) {
       try {
-        await fetch(payload.sheetsWebhookUrl.trim(), {
+        await fetch(targetWebhook, {
           method: 'POST',
-          mode: 'no-cors', // Evita problemas de CORS con Google Apps Script
+          mode: 'no-cors',
           headers: {
             'Content-Type': 'application/json'
           },
@@ -1839,7 +2195,6 @@ const StorageManager = {
 
 window.StorageManager = StorageManager;
 
-
   </script>
   <script>
   /* === VISTA Y EMBUDO DEL CLIENTE === */
@@ -1879,7 +2234,7 @@ const SurveyApp = {
       if (match) slug = match[1];
     }
 
-    this.restaurant = window.StorageManager.getRestaurant(slug || 'milhojas');
+    this.restaurant = window.StorageManager.getRestaurant(slug || 'ciudad-montes');
 
     // Aplicar variables de color de la marca
     document.documentElement.style.setProperty('--brand-primary', this.restaurant.primaryColor || '#b45309');
@@ -2282,6 +2637,7 @@ window.SurveyApp = SurveyApp;
   <script>
   /* === ESTUDIO QR Y HABLADOR DE MESA === */
 // Estudio de Generación de Códigos QR y Habladores de Mesa Imprimibles
+// con Motor de QR Inteligente Multi-Dispositivo (100% Carga Instantánea)
 
 const QRStudio = {
   currentRestaurant: null,
@@ -2305,13 +2661,16 @@ const QRStudio = {
   renderStudio() {
     const r = this.currentRestaurant;
     
-    // Configurar URL destino (soporta file://, localhost y dominios reales)
+    // Configurar URL destino inteligente con datos incrustados
     const baseUrlInput = document.getElementById('qr-base-url-input');
     let origin = window.location.origin;
     if (!origin || origin === 'null' || window.location.protocol === 'file:') {
-      origin = 'http://localhost:3000';
+      origin = 'https://encuestas-comercios.vercel.app';
     }
-    const defaultUrl = `${origin}/?r=${r.id}`;
+
+    // Generar la URL inteligente que funciona en cualquier celular del mundo
+    const defaultUrl = window.StorageManager.buildSmartUrl(r, origin);
+
     if (baseUrlInput) {
       if (!baseUrlInput.value || baseUrlInput.dataset.restId !== r.id) {
         baseUrlInput.value = defaultUrl;
@@ -2331,7 +2690,7 @@ const QRStudio = {
         height: 170,
         colorDark: r.primaryColor || '#000000',
         colorLight: '#ffffff',
-        correctLevel: window.QRCode.CorrectLevel.H
+        correctLevel: window.QRCode.CorrectLevel.M
       });
       this.qrCanvas = qrContainer.querySelector('canvas');
     }
@@ -2359,7 +2718,7 @@ const QRStudio = {
         height: 145,
         colorDark: '#1e293b',
         colorLight: '#ffffff',
-        correctLevel: window.QRCode.CorrectLevel.H
+        correctLevel: window.QRCode.CorrectLevel.M
       });
     }
 
@@ -2373,7 +2732,7 @@ const QRStudio = {
   downloadQR() {
     // Generar canvas de alta resolución (600x600 px) para impresión profesional
     const baseUrlInput = document.getElementById('qr-base-url-input');
-    const targetUrl = baseUrlInput ? baseUrlInput.value : `${window.location.origin}/?r=${this.currentRestaurant.id}`;
+    const targetUrl = baseUrlInput ? baseUrlInput.value : window.StorageManager.buildSmartUrl(this.currentRestaurant, window.location.origin);
 
     const tempDiv = document.createElement('div');
     const qr = new window.QRCode(tempDiv, {
@@ -2382,7 +2741,7 @@ const QRStudio = {
       height: 600,
       colorDark: this.currentRestaurant.primaryColor || '#000000',
       colorLight: '#ffffff',
-      correctLevel: window.QRCode.CorrectLevel.H
+      correctLevel: window.QRCode.CorrectLevel.M
     });
 
     const canvas = tempDiv.querySelector('canvas');
@@ -2659,7 +3018,7 @@ const AdminApp = {
 
   deleteRestaurant(id) {
     if (confirm(`¿Estás seguro de que deseas eliminar este restaurante (${id})?`)) {
-      window.StorageManager.deleteRestaurant(id);
+      window.StorageManager.deleteRestaurant(id, true);
       this.renderRestaurantsList();
       this.renderStats();
     }
@@ -2719,7 +3078,7 @@ const AdminApp = {
       questions
     };
 
-    window.StorageManager.upsertRestaurant(payload);
+    window.StorageManager.upsertRestaurant(payload, true);
     this.closeModal();
     this.renderRestaurantsList();
     this.renderStats();
@@ -2729,8 +3088,10 @@ const AdminApp = {
   openSheetsModal() {
     const modal = document.getElementById('sheets-code-modal');
     const codeEl = document.getElementById('apps-script-code-display');
+    const input = document.getElementById('central-webhook-input');
     if (modal) modal.classList.remove('hidden');
     if (codeEl) codeEl.textContent = window.GOOGLE_APPS_SCRIPT_CODE;
+    if (input) input.value = window.StorageManager.getCentralWebhookUrl();
   },
 
   closeSheetsModal() {
@@ -2747,6 +3108,31 @@ const AdminApp = {
         setTimeout(() => { btn.innerHTML = originalText; }, 2500);
       }
     });
+  },
+
+  async saveCentralWebhook() {
+    const input = document.getElementById('central-webhook-input');
+    const status = document.getElementById('central-sync-status');
+    const url = input ? input.value.trim() : '';
+
+    if (!url || !url.startsWith('https://script.google.com/')) {
+      alert('Por favor ingresa una URL válida de Google Apps Script (debe empezar con https://script.google.com/)');
+      return;
+    }
+
+    window.StorageManager.setCentralWebhookUrl(url);
+    if (status) status.innerHTML = '⏳ Sincronizando todos tus restaurantes con Google Sheets...';
+
+    // Subir todos los restaurantes locales a la nube
+    const list = window.StorageManager.getRestaurants();
+    for (const r of list) {
+      await window.StorageManager.pushRestaurantToCloud(r);
+    }
+
+    if (status) {
+      status.innerHTML = '✅ <span class="text-emerald-700 font-bold">¡Conectado y sincronizado con éxito! Todos tus restaurantes están en la nube.</span>';
+    }
+    alert('¡Conexión exitosa! Ahora Google Sheets guarda y sincroniza todos tus restaurantes clientes.');
   },
 
   // ====================================================
