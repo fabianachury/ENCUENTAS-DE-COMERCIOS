@@ -1902,13 +1902,15 @@ const STORAGE_KEYS = {
   CENTRAL_WEBHOOK: 'qr_central_webhook_url_v1'
 };
 
+const DEFAULT_CENTRAL_WEBHOOK = 'https://script.google.com/macros/s/AKfycbx9NGmANbtqj_ctYuctmiQVTXiaKjUkceNdOGDdYvSmgVcDmdv79G1WRH8i8a1ElPhN/exec';
+
 const StorageManager = {
   // Obtener URL central de Google Sheets
   getCentralWebhookUrl() {
     try {
-      return (localStorage.getItem(STORAGE_KEYS.CENTRAL_WEBHOOK) || '').trim();
+      return (localStorage.getItem(STORAGE_KEYS.CENTRAL_WEBHOOK) || DEFAULT_CENTRAL_WEBHOOK || '').trim();
     } catch (e) {
-      return '';
+      return DEFAULT_CENTRAL_WEBHOOK;
     }
   },
 
@@ -2333,8 +2335,8 @@ const SurveyApp = {
     requestedContact: false
   },
 
-  init() {
-    this.loadRestaurant();
+  async init() {
+    await this.loadRestaurant();
     this.renderHeader();
     this.renderDynamicAspects();
     this.setupEventListeners();
@@ -2353,19 +2355,18 @@ const SurveyApp = {
 
     slug = slug || 'ciudad-montes';
 
-    this.restaurant = window.StorageManager.getRestaurant(slug);
-    this.applyBrand();
+    let rest = window.StorageManager.getRestaurant(slug);
 
-    // Si el restaurante actual en caché no es el solicitado, buscar en la nube
-    if (this.restaurant && this.restaurant.id.toLowerCase() !== slug.toLowerCase()) {
+    // Si no está localmente o el ID no coincide, consultar en la nube (Google Sheets)
+    if (!rest || rest.id.toLowerCase() !== slug.toLowerCase()) {
       const cloudRest = await window.StorageManager.fetchRestaurantFromCloud(slug);
       if (cloudRest) {
-        this.restaurant = cloudRest;
-        this.applyBrand();
-        this.renderHeader();
-        this.renderDynamicAspects();
+        rest = cloudRest;
       }
     }
+
+    this.restaurant = rest || window.StorageManager.getRestaurants()[0];
+    this.applyBrand();
   },
 
   applyBrand() {
@@ -2770,7 +2771,7 @@ window.SurveyApp = SurveyApp;
   <script>
   /* === ESTUDIO QR Y HABLADOR DE MESA === */
 // Estudio de Generación de Códigos QR y Habladores de Mesa Imprimibles
-// Compatible con todos los dispositivos y tamaños de QR estándar
+// Genera códigos QR estándar limpios, de baja densidad y lectura ultra-rápida
 
 const QRStudio = {
   currentRestaurant: null,
@@ -2794,15 +2795,14 @@ const QRStudio = {
   renderStudio() {
     const r = this.currentRestaurant;
     
-    // Configurar URL destino (soporta file://, localhost y dominios reales)
+    // Configurar URL destino corta y limpia (baja densidad, escaneo instantáneo a distancia)
     const baseUrlInput = document.getElementById('qr-base-url-input');
     let origin = window.location.origin;
     if (!origin || origin === 'null' || window.location.protocol === 'file:') {
       origin = 'https://encuestas-comercios.vercel.app';
     }
 
-    // Generar la URL inteligente con nombre, eslogan, colores y beneficios incluidos
-    const defaultUrl = window.StorageManager.buildSmartUrl(r, origin);
+    const defaultUrl = `${origin}/?r=${r.id}`;
 
     if (baseUrlInput) {
       if (!baseUrlInput.value || baseUrlInput.dataset.restId !== r.id) {
@@ -2813,7 +2813,7 @@ const QRStudio = {
 
     const targetUrl = baseUrlInput ? baseUrlInput.value : defaultUrl;
 
-    // Generar el código QR (Vista previa compacta y nítida)
+    // Generar el código QR (Vista previa limpia y nítida)
     const qrContainer = document.getElementById('qr-preview-canvas');
     if (qrContainer) {
       qrContainer.innerHTML = '';
@@ -2877,7 +2877,7 @@ const QRStudio = {
     if (!origin || origin === 'null' || window.location.protocol === 'file:') {
       origin = 'https://encuestas-comercios.vercel.app';
     }
-    const targetUrl = baseUrlInput ? baseUrlInput.value : window.StorageManager.buildSmartUrl(this.currentRestaurant, origin);
+    const targetUrl = baseUrlInput ? baseUrlInput.value : `${origin}/?r=${this.currentRestaurant.id}`;
 
     const tempDiv = document.createElement('div');
     try {
@@ -2925,11 +2925,23 @@ window.QRStudio = QRStudio;
 const AdminApp = {
   editingId: null,
 
-  init() {
+  async init() {
     this.renderStats();
     this.renderRestaurantsList();
     this.renderSubmissionsTable();
     this.setupEventListeners();
+
+    if (window.StorageManager.getCentralWebhookUrl()) {
+      try {
+        const res = await window.StorageManager.syncRestaurantsFromCloud();
+        if (res && res.success && res.count > 0) {
+          this.renderRestaurantsList();
+          this.renderStats();
+        }
+      } catch (e) {
+        console.warn('Auto-sync cloud:', e);
+      }
+    }
   },
 
   renderStats() {
