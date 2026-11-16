@@ -1763,7 +1763,7 @@ window.GOOGLE_APPS_SCRIPT_CODE = GOOGLE_APPS_SCRIPT_CODE;
 
   </script>
   <script>
-  /* === GESTOR DE DATOS, NUBE Y SMART QR === */
+  /* === GESTOR DE DATOS, NUBE Y MULTI-RESTAURANTE === */
 // Gestión de datos, almacenamiento local, nube (Google Sheets) y Smart QR Multi-Restaurante
 
 const DEFAULT_RESTAURANTS = [
@@ -1993,6 +1993,32 @@ const StorageManager = {
       console.warn('Error sincronizando desde la nube:', e);
       return { success: false, message: e.toString() };
     }
+  },
+
+  // Consultar un restaurante específico desde Google Sheets si no está localmente
+  async fetchRestaurantFromCloud(id) {
+    const webhook = this.getCentralWebhookUrl();
+    if (!webhook || !webhook.startsWith('http')) return null;
+
+    try {
+      const url = webhook + (webhook.includes('?') ? '&' : '?') + 'action=getRestaurants';
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      const data = await response.json();
+      if (data && data.status === 'success' && Array.isArray(data.restaurants)) {
+        const current = this.getRestaurants();
+        data.restaurants.forEach(cloudRest => {
+          const idx = current.findIndex(c => c.id.toLowerCase() === cloudRest.id.toLowerCase());
+          if (idx >= 0) current[idx] = { ...current[idx], ...cloudRest };
+          else current.push(cloudRest);
+        });
+        this.saveRestaurants(current);
+        return current.find(r => r.id.toLowerCase() === (id || '').toLowerCase()) || null;
+      }
+    } catch (e) {
+      console.warn('Error trayendo restaurante de la nube:', e);
+    }
+    return null;
   },
 
   // Construir URL inteligente (lleva la marca y configuración incrustada para carga instantánea en cualquier celular)
@@ -2225,7 +2251,7 @@ const SurveyApp = {
   },
 
   // Identificar el restaurante activo
-  loadRestaurant() {
+  async loadRestaurant() {
     const urlParams = new URLSearchParams(window.location.search);
     let slug = urlParams.get('r');
 
@@ -2234,9 +2260,25 @@ const SurveyApp = {
       if (match) slug = match[1];
     }
 
-    this.restaurant = window.StorageManager.getRestaurant(slug || 'ciudad-montes');
+    slug = slug || 'ciudad-montes';
 
-    // Aplicar variables de color de la marca
+    this.restaurant = window.StorageManager.getRestaurant(slug);
+    this.applyBrand();
+
+    // Si el restaurante actual en caché no es el solicitado, buscar en la nube
+    if (this.restaurant && this.restaurant.id.toLowerCase() !== slug.toLowerCase()) {
+      const cloudRest = await window.StorageManager.fetchRestaurantFromCloud(slug);
+      if (cloudRest) {
+        this.restaurant = cloudRest;
+        this.applyBrand();
+        this.renderHeader();
+        this.renderDynamicAspects();
+      }
+    }
+  },
+
+  applyBrand() {
+    if (!this.restaurant) return;
     document.documentElement.style.setProperty('--brand-primary', this.restaurant.primaryColor || '#b45309');
     document.documentElement.style.setProperty('--brand-accent', this.restaurant.accentColor || '#f59e0b');
   },
@@ -2324,10 +2366,10 @@ const SurveyApp = {
     const questions = (this.restaurant && this.restaurant.questions && this.restaurant.questions.length > 0)
       ? this.restaurant.questions
       : [
-          { id: 'quality', label: 'Sabor y Calidad de la Comida / Producto', icon: '🍰' },
-          { id: 'cleanliness', label: 'Aseo y Presentación de las Instalaciones', icon: '✨' },
-          { id: 'service', label: 'Atención y Amabilidad del Personal', icon: '☕' }
-        ];
+        { id: 'quality', label: 'Sabor y Calidad de la Comida / Producto', icon: '🍰' },
+        { id: 'cleanliness', label: 'Aseo y Presentación de las Instalaciones', icon: '✨' },
+        { id: 'service', label: 'Atención y Amabilidad del Personal', icon: '☕' }
+      ];
 
     // Inicializar datos de aspectos
     this.formData.aspectsData = questions.map((q, idx) => ({
@@ -2637,7 +2679,7 @@ window.SurveyApp = SurveyApp;
   <script>
   /* === ESTUDIO QR Y HABLADOR DE MESA === */
 // Estudio de Generación de Códigos QR y Habladores de Mesa Imprimibles
-// con Motor de QR Inteligente Multi-Dispositivo (100% Carga Instantánea)
+// Compatible con todos los dispositivos y tamaños de QR estándar
 
 const QRStudio = {
   currentRestaurant: null,
@@ -2661,15 +2703,14 @@ const QRStudio = {
   renderStudio() {
     const r = this.currentRestaurant;
     
-    // Configurar URL destino inteligente con datos incrustados
+    // Configurar URL destino (soporta file://, localhost y dominios reales)
     const baseUrlInput = document.getElementById('qr-base-url-input');
     let origin = window.location.origin;
     if (!origin || origin === 'null' || window.location.protocol === 'file:') {
       origin = 'https://encuestas-comercios.vercel.app';
     }
 
-    // Generar la URL inteligente que funciona en cualquier celular del mundo
-    const defaultUrl = window.StorageManager.buildSmartUrl(r, origin);
+    const defaultUrl = `${origin}/?r=${r.id}`;
 
     if (baseUrlInput) {
       if (!baseUrlInput.value || baseUrlInput.dataset.restId !== r.id) {
@@ -2684,15 +2725,19 @@ const QRStudio = {
     const qrContainer = document.getElementById('qr-preview-canvas');
     if (qrContainer) {
       qrContainer.innerHTML = '';
-      const qr = new window.QRCode(qrContainer, {
-        text: targetUrl,
-        width: 170,
-        height: 170,
-        colorDark: r.primaryColor || '#000000',
-        colorLight: '#ffffff',
-        correctLevel: window.QRCode.CorrectLevel.M
-      });
-      this.qrCanvas = qrContainer.querySelector('canvas');
+      try {
+        const qr = new window.QRCode(qrContainer, {
+          text: targetUrl,
+          width: 170,
+          height: 170,
+          colorDark: r.primaryColor || '#000000',
+          colorLight: '#ffffff',
+          correctLevel: window.QRCode.CorrectLevel.M
+        });
+        this.qrCanvas = qrContainer.querySelector('canvas');
+      } catch (err) {
+        console.error('Error generando QR de vista previa:', err);
+      }
     }
 
     // Actualizar vista previa del Hablador de Mesa
@@ -2712,14 +2757,18 @@ const QRStudio = {
 
     if (tentQrTarget) {
       tentQrTarget.innerHTML = '';
-      new window.QRCode(tentQrTarget, {
-        text: targetUrl,
-        width: 145,
-        height: 145,
-        colorDark: '#1e293b',
-        colorLight: '#ffffff',
-        correctLevel: window.QRCode.CorrectLevel.M
-      });
+      try {
+        new window.QRCode(tentQrTarget, {
+          text: targetUrl,
+          width: 145,
+          height: 145,
+          colorDark: '#1e293b',
+          colorLight: '#ffffff',
+          correctLevel: window.QRCode.CorrectLevel.M
+        });
+      } catch (err) {
+        console.error('Error generando QR del hablador:', err);
+      }
     }
 
     // Aplicar color en el borde del hablador
@@ -2732,32 +2781,40 @@ const QRStudio = {
   downloadQR() {
     // Generar canvas de alta resolución (600x600 px) para impresión profesional
     const baseUrlInput = document.getElementById('qr-base-url-input');
-    const targetUrl = baseUrlInput ? baseUrlInput.value : window.StorageManager.buildSmartUrl(this.currentRestaurant, window.location.origin);
+    let origin = window.location.origin;
+    if (!origin || origin === 'null' || window.location.protocol === 'file:') {
+      origin = 'https://encuestas-comercios.vercel.app';
+    }
+    const targetUrl = baseUrlInput ? baseUrlInput.value : `${origin}/?r=${this.currentRestaurant.id}`;
 
     const tempDiv = document.createElement('div');
-    const qr = new window.QRCode(tempDiv, {
-      text: targetUrl,
-      width: 600,
-      height: 600,
-      colorDark: this.currentRestaurant.primaryColor || '#000000',
-      colorLight: '#ffffff',
-      correctLevel: window.QRCode.CorrectLevel.M
-    });
+    try {
+      const qr = new window.QRCode(tempDiv, {
+        text: targetUrl,
+        width: 600,
+        height: 600,
+        colorDark: this.currentRestaurant.primaryColor || '#000000',
+        colorLight: '#ffffff',
+        correctLevel: window.QRCode.CorrectLevel.M
+      });
 
-    const canvas = tempDiv.querySelector('canvas');
-    if (!canvas) {
-      alert('Error generando QR en alta resolución.');
-      return;
+      const canvas = tempDiv.querySelector('canvas');
+      if (!canvas) {
+        alert('Error generando QR en alta resolución.');
+        return;
+      }
+
+      // Descargar imagen PNG de alta resolución
+      const imageUri = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `QR_${this.currentRestaurant.id}_AltaResolucion.png`;
+      link.href = imageUri;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      alert('Error descargando QR: ' + err.message);
     }
-
-    // Descargar imagen PNG de alta resolución
-    const imageUri = canvas.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.download = `QR_${this.currentRestaurant.id}_AltaResolucion.png`;
-    link.href = imageUri;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   },
 
   printTableTent() {
