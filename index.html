@@ -2097,7 +2097,8 @@ const StorageManager = {
   },
 
   // Guardar o actualizar un restaurante individual y sincronizar con la nube
-  upsertRestaurant(restaurantData, syncCloud = false) {
+  // Guardar o actualizar un restaurante individual y sincronizar con la nube
+  async upsertRestaurant(restaurantData, syncCloud = false) {
     const list = this.getRestaurants();
     const index = list.findIndex(r => r.id.toLowerCase() === restaurantData.id.toLowerCase());
 
@@ -2109,20 +2110,20 @@ const StorageManager = {
     this.saveRestaurants(list);
 
     if (syncCloud) {
-      this.pushRestaurantToCloud(restaurantData);
+      await this.pushRestaurantToCloud(restaurantData);
     }
 
     return list;
   },
 
   // Eliminar restaurante
-  deleteRestaurant(id, syncCloud = false) {
+  async deleteRestaurant(id, syncCloud = false) {
     let list = this.getRestaurants();
     list = list.filter(r => r.id.toLowerCase() !== id.toLowerCase());
     this.saveRestaurants(list);
 
     if (syncCloud) {
-      this.deleteRestaurantFromCloud(id);
+      await this.deleteRestaurantFromCloud(id);
     }
 
     return list;
@@ -2137,13 +2138,13 @@ const StorageManager = {
       await fetch(webhook, {
         method: 'POST',
         mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           action: 'saveRestaurant',
           restaurant: restaurant
         })
       });
-      console.log('☁️ Restaurante sincronizado con Google Sheets:', restaurant.name);
+      console.log('☁️ Restaurante sincronizado con Google Sheets exitosamente:', restaurant.name);
     } catch (e) {
       console.warn('No se pudo enviar restaurante a Google Sheets:', e);
     }
@@ -2158,7 +2159,7 @@ const StorageManager = {
       await fetch(webhook, {
         method: 'POST',
         mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           action: 'deleteRestaurant',
           id: id
@@ -2175,8 +2176,8 @@ const StorageManager = {
     }
 
     try {
-      const url = webhook + (webhook.includes('?') ? '&' : '?') + 'action=getRestaurants';
-      const response = await fetch(url);
+      const url = webhook + (webhook.includes('?') ? '&' : '?') + 'action=getRestaurants&t=' + Date.now();
+      const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) throw new Error('Error HTTP ' + response.status);
 
       const data = await response.json();
@@ -2203,14 +2204,14 @@ const StorageManager = {
     }
   },
 
-  // Consultar un restaurante específico desde Google Sheets si no está localmente
+  // Consultar un restaurante específico desde Google Sheets si no está localmente o para traer la versión más fresca
   async fetchRestaurantFromCloud(id) {
     const webhook = this.getCentralWebhookUrl();
     if (!webhook || !webhook.startsWith('http')) return null;
 
     try {
-      const url = webhook + (webhook.includes('?') ? '&' : '?') + 'action=getRestaurants';
-      const response = await fetch(url);
+      const url = webhook + (webhook.includes('?') ? '&' : '?') + 'action=getRestaurants&t=' + Date.now();
+      const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) return null;
       const data = await response.json();
       if (data && data.status === 'success' && Array.isArray(data.restaurants)) {
@@ -2568,18 +2569,33 @@ const SurveyApp = {
       if (slug) sessionStorage.setItem('last_active_survey_restaurant', slug);
     } catch (e) {}
 
+    // 1. Mostrar de inmediato la versión local (si existe) para que la pantalla abra al instante
     let rest = window.StorageManager.getRestaurant(slug);
-
-    // Si no está localmente o el ID no coincide, consultar en la nube (Google Sheets)
-    if (!rest || rest.id.toLowerCase() !== slug.toLowerCase()) {
-      const cloudRest = await window.StorageManager.fetchRestaurantFromCloud(slug);
-      if (cloudRest) {
-        rest = cloudRest;
-      }
+    if (rest) {
+      this.restaurant = rest;
+      this.applyBrand();
     }
 
-    this.restaurant = rest || window.StorageManager.getRestaurants()[0];
-    this.applyBrand();
+    // 2. Traer SIEMPRE la versión fresca desde Google Sheets en la nube (refresca ganchos, preguntas y gratificaciones)
+    try {
+      const cloudRest = await window.StorageManager.fetchRestaurantFromCloud(slug);
+      if (cloudRest) {
+        this.restaurant = cloudRest;
+        this.applyBrand();
+        this.renderHeader();
+        this.renderDynamicAspects();
+        if (this.currentStep === 3) {
+          this.renderResultBranch();
+        }
+      }
+    } catch (e) {
+      console.warn('No se pudo actualizar restaurante desde la nube:', e);
+    }
+
+    if (!this.restaurant) {
+      this.restaurant = window.StorageManager.getRestaurants()[0];
+      this.applyBrand();
+    }
   },
 
   // Control de historial para el botón físico o gesto de Atrás del celular
@@ -3225,10 +3241,19 @@ const AdminApp = {
 
     if (window.StorageManager.getCentralWebhookUrl()) {
       try {
+        // 1. Respaldar y sincronizar los restaurantes locales en la nube
+        const localList = window.StorageManager.getRestaurants();
+        for (const r of localList) {
+          await window.StorageManager.pushRestaurantToCloud(r);
+        }
+
+        // 2. Traer lista consolidada de la nube
         const resRest = await window.StorageManager.syncRestaurantsFromCloud();
         if (resRest && resRest.success && resRest.count > 0) {
           this.renderRestaurantsList();
         }
+
+        // 3. Traer encuestas de clientes recibidas
         const resSubs = await window.StorageManager.syncSubmissionsFromCloud();
         if (resSubs && resSubs.success) {
           this.renderStats();
@@ -3481,64 +3506,81 @@ const AdminApp = {
     }
   },
 
-  saveModalData() {
-    const name = document.getElementById('modal-rest-name').value.trim();
-    let slug = document.getElementById('modal-rest-slug').value.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-');
-    const tagline = document.getElementById('modal-rest-tagline').value.trim();
-    const logo = document.getElementById('modal-rest-logo').value.trim();
-    const primaryColor = document.getElementById('modal-rest-color').value;
-    const googleMapsUrl = document.getElementById('modal-rest-google').value.trim();
-    const rewardText = document.getElementById('modal-rest-reward').value.trim();
-    const sheetsWebhookUrl = document.getElementById('modal-rest-webhook').value.trim();
+  async saveModalData() {
+    const submitBtn = document.querySelector('#restaurant-modal-form button[type="submit"]');
+    const originalBtnText = submitBtn ? submitBtn.innerHTML : 'Guardar Restaurante';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<span>⏳ Guardando y subiendo a Google Sheets...</span>`;
+    }
 
-    const hasImmediateReward = document.getElementById('modal-rest-has-immediate').checked;
-    const immediateRewardText = document.getElementById('modal-rest-immediate-text').value.trim();
+    try {
+      const name = document.getElementById('modal-rest-name').value.trim();
+      let slug = document.getElementById('modal-rest-slug').value.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-');
+      const tagline = document.getElementById('modal-rest-tagline').value.trim();
+      const logo = document.getElementById('modal-rest-logo').value.trim();
+      const primaryColor = document.getElementById('modal-rest-color').value;
+      const googleMapsUrl = document.getElementById('modal-rest-google').value.trim();
+      const rewardText = document.getElementById('modal-rest-reward').value.trim();
+      const sheetsWebhookUrl = document.getElementById('modal-rest-webhook').value.trim();
 
-    // Leer todos los aspectos dinámicos
-    const aspectInputs = document.querySelectorAll('.modal-aspect-input');
-    const questions = [];
-    aspectInputs.forEach((inp, idx) => {
-      const val = inp.value.trim();
-      if (val) {
-        questions.push({
-          id: `aspect_${idx + 1}`,
-          label: val,
-          icon: '⭐'
-        });
+      const hasImmediateReward = document.getElementById('modal-rest-has-immediate').checked;
+      const immediateRewardText = document.getElementById('modal-rest-immediate-text').value.trim();
+
+      // Leer todos los aspectos dinámicos
+      const aspectInputs = document.querySelectorAll('.modal-aspect-input');
+      const questions = [];
+      aspectInputs.forEach((inp, idx) => {
+        const val = inp.value.trim();
+        if (val) {
+          questions.push({
+            id: `aspect_${idx + 1}`,
+            label: val,
+            icon: '⭐'
+          });
+        }
+      });
+
+      if (questions.length === 0) {
+        questions.push({ id: 'aspect_1', label: 'Calidad del Producto', icon: '⭐' });
       }
-    });
 
-    if (questions.length === 0) {
-      questions.push({ id: 'aspect_1', label: 'Calidad del Producto', icon: '⭐' });
+      if (!name) {
+        alert('Por favor ingresa el nombre comercial del restaurante.');
+        return;
+      }
+      if (!slug) {
+        slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      }
+
+      const payload = {
+        id: this.editingId || slug,
+        name,
+        tagline: tagline || 'Tu satisfacción es lo primero',
+        logo: logo || 'https://cdn-icons-png.flaticon.com/512/992/992747.png',
+        primaryColor,
+        accentColor: primaryColor,
+        googleMapsUrl: googleMapsUrl || 'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4',
+        rewardText: rewardText || '¡Regístrate para recibir beneficios exclusivos en tu cumpleaños!',
+        hasImmediateReward,
+        immediateRewardText: hasImmediateReward ? (immediateRewardText || '☕ Muestra tu reseña al mesero y recibe un café de cortesía hoy') : '',
+        sheetsWebhookUrl,
+        questions
+      };
+
+      await window.StorageManager.upsertRestaurant(payload, true);
+      this.closeModal();
+      this.renderRestaurantsList();
+      this.renderStats();
+    } catch (err) {
+      console.error('Error guardando restaurante:', err);
+      alert('Error guardando restaurante: ' + err.message);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnText;
+      }
     }
-
-    if (!name) {
-      alert('Por favor ingresa el nombre comercial del restaurante.');
-      return;
-    }
-    if (!slug) {
-      slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-    }
-
-    const payload = {
-      id: this.editingId || slug,
-      name,
-      tagline: tagline || 'Tu satisfacción es lo primero',
-      logo: logo || 'https://cdn-icons-png.flaticon.com/512/992/992747.png',
-      primaryColor,
-      accentColor: primaryColor,
-      googleMapsUrl: googleMapsUrl || 'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4',
-      rewardText: rewardText || '¡Regístrate para recibir beneficios exclusivos en tu cumpleaños!',
-      hasImmediateReward,
-      immediateRewardText: hasImmediateReward ? (immediateRewardText || '☕ Muestra tu reseña al mesero y recibe un café de cortesía hoy') : '',
-      sheetsWebhookUrl,
-      questions
-    };
-
-    window.StorageManager.upsertRestaurant(payload, true);
-    this.closeModal();
-    this.renderRestaurantsList();
-    this.renderStats();
   },
 
   // Modal para ver y copiar el código de Google Apps Script
