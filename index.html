@@ -26,7 +26,125 @@
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="css/styles.css">
+  <style>
+/* Estilos y animaciones del Sistema QR de Encuestas */
+
+:root {
+  --brand-primary: #b45309;
+  --brand-accent: #f59e0b;
+}
+
+/* Animaciones */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Pills activas de calificación */
+.rating-pill {
+  transition: all 0.2s ease;
+}
+
+.rating-pill:hover {
+  transform: translateY(-1px);
+}
+
+.rating-pill.active-pill {
+  background-color: var(--brand-primary) !important;
+  color: #ffffff !important;
+  border-color: var(--brand-primary) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  transform: scale(1.04);
+}
+
+/* Botón de estrellas */
+.star-btn {
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.15s ease;
+}
+
+.star-btn:hover {
+  transform: scale(1.22);
+}
+
+.star-btn:active {
+  transform: scale(0.95);
+}
+
+/* Efecto de pulso en CTA principal */
+.pulse-glow {
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5);
+  animation: pulseGlowAnimation 2s infinite;
+}
+
+@keyframes pulseGlowAnimation {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(245, 158, 11, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}
+
+/* ====================================================
+   ESTILOS DE IMPRESIÓN: HABLADOR DE MESA (ACRÍLICO)
+   ==================================================== */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  body {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #printable-table-tent,
+  #printable-table-tent * {
+    visibility: visible;
+  }
+
+  #printable-table-tent {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 10.5cm !important;
+    height: 15.5cm !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    border: 3px solid #000000 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    padding: 1.5cm 1cm !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+
+
+  </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans antialiased">
 
@@ -780,12 +898,2225 @@
   <!-- ========================================== -->
   <!-- SCRIPTS DE LA APLICACIÓN                   -->
   <!-- ========================================== -->
-  <script src="js/qrcode.js"></script>
-  <script src="js/sheets-template.js"></script>
-  <script src="js/storage.js"></script>
-  <script src="js/survey.js"></script>
-  <script src="js/qr-studio.js"></script>
-  <script src="js/admin.js"></script>
+    <!-- ========================================== -->
+  <!-- SCRIPTS AUTÓNOMOS DE LA APLICACIÓN (TODO EN UNO) -->
+  <!-- ========================================== -->
+  <script>
+  /* === MOTOR GENERADOR QR CODE === */
+/**
+ * EasyQRCode / QRCode generator for browser (Pure JS, zero dependencies)
+ * Based on Kazuhiko Arase's QR Code algorithm
+ */
+(function() {
+  function QR8bitByte(data) {
+    this.mode = QRMode.MODE_8BIT_BYTE;
+    this.data = data;
+  }
+  QR8bitByte.prototype = {
+    getLength: function() { return this.data.length; },
+    write: function(buffer) {
+      for (var i = 0; i < this.data.length; i++) {
+        buffer.put(this.data.charCodeAt(i), 8);
+      }
+    }
+  };
+
+  var QRMode = { MODE_NUMBER: 1, MODE_ALPHA_NUM: 2, MODE_8BIT_BYTE: 4, MODE_KANJI: 8 };
+  var QRErrorCorrectLevel = { L: 1, M: 0, Q: 3, H: 2 };
+  var QRMaskPattern = { PATTERN000: 0, PATTERN001: 1, PATTERN010: 2, PATTERN011: 3, PATTERN100: 4, PATTERN101: 5, PATTERN110: 6, PATTERN111: 7 };
+
+  var QRUtil = {
+    PATTERN_POSITION_TABLE: [
+      [],
+      [6, 18],
+      [6, 22],
+      [6, 26],
+      [6, 30],
+      [6, 34],
+      [6, 22, 38],
+      [6, 24, 42],
+      [6, 26, 46],
+      [6, 28, 50],
+      [6, 30, 54],
+      [6, 32, 58],
+      [6, 34, 62],
+      [6, 26, 46, 66],
+      [6, 26, 48, 70],
+      [6, 26, 50, 74],
+      [6, 30, 54, 78],
+      [6, 30, 56, 82],
+      [6, 30, 58, 86],
+      [6, 34, 62, 90],
+      [6, 28, 50, 72, 94],
+      [6, 26, 50, 74, 98],
+      [6, 30, 54, 78, 102],
+      [6, 28, 54, 80, 106],
+      [6, 32, 58, 84, 110],
+      [6, 30, 58, 86, 114],
+      [6, 34, 62, 90, 118],
+      [6, 26, 50, 74, 98, 122],
+      [6, 30, 54, 78, 102, 126],
+      [6, 26, 52, 78, 104, 130],
+      [6, 30, 56, 82, 108, 134],
+      [6, 34, 60, 86, 112, 138],
+      [6, 30, 58, 86, 114, 142],
+      [6, 34, 62, 90, 118, 146],
+      [6, 30, 54, 78, 102, 126, 150],
+      [6, 24, 50, 76, 102, 128, 154],
+      [6, 28, 54, 80, 106, 132, 158],
+      [6, 32, 58, 84, 110, 136, 162],
+      [6, 26, 54, 82, 110, 138, 166],
+      [6, 30, 58, 86, 114, 142, 170]
+    ],
+    G15: (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0),
+    G18: (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0),
+    G15_MASK: (1 << 14) | (1 << 12) | (1 << 10) | (1 << 4) | (1 << 1),
+    getBCHTypeInfo: function(data) {
+      var d = data << 10;
+      while (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G15) >= 0) {
+        d ^= (QRUtil.G15 << (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G15)));
+      }
+      return ((data << 10) | d) ^ QRUtil.G15_MASK;
+    },
+    getBCHTypeNumber: function(data) {
+      var d = data << 12;
+      while (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G18) >= 0) {
+        d ^= (QRUtil.G18 << (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G18)));
+      }
+      return (data << 12) | d;
+    },
+    getBCHDigit: function(data) {
+      var digit = 0;
+      while (data != 0) {
+        digit++;
+        data >>>= 1;
+      }
+      return digit;
+    },
+    getPatternPosition: function(typeNumber) {
+      return QRUtil.PATTERN_POSITION_TABLE[typeNumber - 1];
+    },
+    getMask: function(maskPattern, i, j) {
+      switch (maskPattern) {
+        case QRMaskPattern.PATTERN000: return (i + j) % 2 == 0;
+        case QRMaskPattern.PATTERN001: return i % 2 == 0;
+        case QRMaskPattern.PATTERN010: return j % 3 == 0;
+        case QRMaskPattern.PATTERN011: return (i + j) % 3 == 0;
+        case QRMaskPattern.PATTERN100: return (Math.floor(i / 2) + Math.floor(j / 3)) % 2 == 0;
+        case QRMaskPattern.PATTERN101: return (i * j) % 2 + (i * j) % 3 == 0;
+        case QRMaskPattern.PATTERN110: return ((i * j) % 2 + (i * j) % 3) % 2 == 0;
+        case QRMaskPattern.PATTERN111: return ((i * j) % 3 + (i + j) % 2) % 2 == 0;
+        default: throw new Error("bad maskPattern:" + maskPattern);
+      }
+    },
+    getErrorCorrectPolynomial: function(errorCorrectLength) {
+      var a = new QRPolynomial([1], 0);
+      for (var i = 0; i < errorCorrectLength; i++) {
+        a = a.multiply(new QRPolynomial([1, QRMath.gexp(i)], 0));
+      }
+      return a;
+    },
+    getLengthInBits: function(mode, type) {
+      if (1 <= type && type < 10) {
+        switch (mode) {
+          case QRMode.MODE_NUMBER: return 10;
+          case QRMode.MODE_ALPHA_NUM: return 9;
+          case QRMode.MODE_8BIT_BYTE: return 8;
+          case QRMode.MODE_KANJI: return 8;
+          default: throw new Error("mode:" + mode);
+        }
+      } else if (type < 27) {
+        switch (mode) {
+          case QRMode.MODE_NUMBER: return 12;
+          case QRMode.MODE_ALPHA_NUM: return 11;
+          case QRMode.MODE_8BIT_BYTE: return 16;
+          case QRMode.MODE_KANJI: return 10;
+          default: throw new Error("mode:" + mode);
+        }
+      } else if (type < 41) {
+        switch (mode) {
+          case QRMode.MODE_NUMBER: return 14;
+          case QRMode.MODE_ALPHA_NUM: return 13;
+          case QRMode.MODE_8BIT_BYTE: return 16;
+          case QRMode.MODE_KANJI: return 12;
+          default: throw new Error("mode:" + mode);
+        }
+      } else {
+        throw new Error("type:" + type);
+      }
+    },
+    getLostPoint: function(qrCode) {
+      var moduleCount = qrCode.getModuleCount();
+      var lostPoint = 0;
+      for (var row = 0; row < moduleCount; row++) {
+        for (var col = 0; col < moduleCount; col++) {
+          var sameCount = 0;
+          var dark = qrCode.isDark(row, col);
+          for (var r = -1; r <= 1; r++) {
+            if (row + r < 0 || moduleCount <= row + r) continue;
+            for (var c = -1; c <= 1; c++) {
+              if (col + c < 0 || moduleCount <= col + c) continue;
+              if (r == 0 && c == 0) continue;
+              if (dark == qrCode.isDark(row + r, col + c)) sameCount++;
+            }
+          }
+          if (sameCount > 5) lostPoint += (3 + sameCount - 5);
+        }
+      }
+      return lostPoint;
+    }
+  };
+
+  var QRMath = {
+    glog: function(n) {
+      if (n < 1) throw new Error("glog(" + n + ")");
+      return QRMath.LOG_TABLE[n];
+    },
+    gexp: function(n) {
+      while (n < 0) n += 255;
+      while (n >= 256) n -= 255;
+      return QRMath.EXP_TABLE[n];
+    },
+    EXP_TABLE: new Array(256),
+    LOG_TABLE: new Array(256)
+  };
+  for (var i = 0; i < 8; i++) QRMath.EXP_TABLE[i] = 1 << i;
+  for (var i = 8; i < 256; i++) QRMath.EXP_TABLE[i] = QRMath.EXP_TABLE[i - 4] ^ QRMath.EXP_TABLE[i - 5] ^ QRMath.EXP_TABLE[i - 6] ^ QRMath.EXP_TABLE[i - 8];
+  for (var i = 0; i < 255; i++) QRMath.LOG_TABLE[QRMath.EXP_TABLE[i]] = i;
+
+  function QRPolynomial(num, shift) {
+    if (num.length == undefined) throw new Error(num.length + "/" + shift);
+    var offset = 0;
+    while (offset < num.length && num[offset] == 0) offset++;
+    this.num = new Array(num.length - offset + shift);
+    for (var i = 0; i < num.length - offset; i++) this.num[i] = num[i + offset];
+  }
+  QRPolynomial.prototype = {
+    get: function(index) { return this.num[index]; },
+    getLength: function() { return this.num.length; },
+    multiply: function(e) {
+      var num = new Array(this.getLength() + e.getLength() - 1);
+      for (var i = 0; i < this.getLength(); i++) {
+        for (var j = 0; j < e.getLength(); j++) {
+          num[i + j] ^= QRMath.gexp(QRMath.glog(this.get(i)) + QRMath.glog(e.get(j)));
+        }
+      }
+      return new QRPolynomial(num, 0);
+    },
+    mod: function(e) {
+      if (this.getLength() - e.getLength() < 0) return this;
+      var ratio = QRMath.glog(this.get(0)) - QRMath.glog(e.get(0));
+      var num = new Array(this.getLength());
+      for (var i = 0; i < this.getLength(); i++) num[i] = this.get(i);
+      for (var i = 0; i < e.getLength(); i++) num[i] ^= QRMath.gexp(QRMath.glog(e.get(i)) + ratio);
+      return new QRPolynomial(num, 0).mod(e);
+    }
+  };
+
+  function QRRSBlock(totalCount, dataCount) {
+    this.totalCount = totalCount;
+    this.dataCount = dataCount;
+  }
+  QRRSBlock.RS_BLOCK_TABLE = [
+    [1, 26, 19], [1, 26, 16], [1, 26, 13], [1, 26, 9],
+    [1, 44, 34], [1, 44, 28], [1, 44, 22], [1, 44, 16],
+    [1, 70, 55], [1, 70, 44], [2, 35, 17], [2, 35, 13],
+    [1, 100, 80], [2, 50, 32], [2, 50, 24], [4, 25, 9],
+    [1, 134, 108], [2, 67, 43], [2, 33, 15, 2, 34, 16], [2, 33, 11, 2, 34, 12],
+    [2, 86, 68], [4, 43, 27], [4, 43, 19], [4, 43, 15],
+    [2, 98, 78], [4, 49, 31], [2, 32, 14, 4, 33, 15], [4, 39, 13, 1, 40, 14],
+    [2, 121, 97], [2, 60, 38, 2, 61, 39], [4, 40, 18, 2, 41, 19], [4, 40, 14, 2, 41, 15],
+    [2, 146, 116], [3, 58, 36, 2, 59, 37], [4, 36, 16, 4, 37, 17], [4, 36, 12, 4, 37, 13],
+    [2, 86, 68, 2, 87, 69], [4, 69, 43, 1, 70, 44], [6, 43, 19, 2, 44, 20], [6, 43, 15, 2, 44, 16]
+  ];
+  QRRSBlock.getRSBlocks = function(typeNumber, errorCorrectLevel) {
+    var rsBlock = QRRSBlock.getRsBlockTable(typeNumber, errorCorrectLevel);
+    if (rsBlock == undefined) throw new Error("bad rs block @ typeNumber:" + typeNumber);
+    var length = rsBlock.length / 3;
+    var list = [];
+    for (var i = 0; i < length; i++) {
+      var count = rsBlock[i * 3 + 0];
+      var totalCount = rsBlock[i * 3 + 1];
+      var dataCount = rsBlock[i * 3 + 2];
+      for (var j = 0; j < count; j++) list.push(new QRRSBlock(totalCount, dataCount));
+    }
+    return list;
+  };
+  QRRSBlock.getRsBlockTable = function(typeNumber, errorCorrectLevel) {
+    switch (errorCorrectLevel) {
+      case QRErrorCorrectLevel.L: return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+      case QRErrorCorrectLevel.M: return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+      case QRErrorCorrectLevel.Q: return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+      case QRErrorCorrectLevel.H: return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+      default: return undefined;
+    }
+  };
+
+  function QRBitBuffer() {
+    this.buffer = [];
+    this.length = 0;
+  }
+  QRBitBuffer.prototype = {
+    get: function(index) {
+      var bufIndex = Math.floor(index / 8);
+      return ((this.buffer[bufIndex] >>> (7 - index % 8)) & 1) == 1;
+    },
+    put: function(num, length) {
+      for (var i = 0; i < length; i++) {
+        this.putBit(((num >>> (length - i - 1)) & 1) == 1);
+      }
+    },
+    getLengthInBits: function() { return this.length; },
+    putBit: function(bit) {
+      var bufIndex = Math.floor(this.length / 8);
+      if (this.buffer.length <= bufIndex) this.buffer.push(0);
+      if (bit) this.buffer[bufIndex] |= (0x80 >>> (this.length % 8));
+      this.length++;
+    }
+  };
+
+  function QRCodeModel(typeNumber, errorCorrectLevel) {
+    this.typeNumber = typeNumber;
+    this.errorCorrectLevel = errorCorrectLevel;
+    this.modules = null;
+    this.moduleCount = 0;
+    this.dataCache = null;
+    this.dataList = [];
+  }
+  QRCodeModel.prototype = {
+    addData: function(data) {
+      var newData = new QR8bitByte(data);
+      this.dataList.push(newData);
+      this.dataCache = null;
+    },
+    isDark: function(row, col) {
+      if (row < 0 || this.moduleCount <= row || col < 0 || this.moduleCount <= col) {
+        throw new Error(row + "," + col);
+      }
+      return this.modules[row][col];
+    },
+    getModuleCount: function() { return this.moduleCount; },
+    make: function() {
+      if (this.typeNumber < 1) {
+        var typeNumber = 1;
+        for (typeNumber = 1; typeNumber < 40; typeNumber++) {
+          var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, this.errorCorrectLevel);
+          var totalDataCount = 0;
+          for (var i = 0; i < rsBlocks.length; i++) totalDataCount += rsBlocks[i].dataCount;
+          var buffer = new QRBitBuffer();
+          for (var i = 0; i < this.dataList.length; i++) {
+            var data = this.dataList[i];
+            buffer.put(data.mode, 4);
+            buffer.put(data.getLength(), QRUtil.getLengthInBits(data.mode, typeNumber));
+            data.write(buffer);
+          }
+          if (buffer.getLengthInBits() <= totalDataCount * 8) break;
+        }
+        this.typeNumber = typeNumber;
+      }
+      this.makeImpl(false, this.getBestMaskPattern());
+    },
+    makeImpl: function(test, maskPattern) {
+      this.moduleCount = this.typeNumber * 4 + 17;
+      this.modules = new Array(this.moduleCount);
+      for (var row = 0; row < this.moduleCount; row++) {
+        this.modules[row] = new Array(this.moduleCount);
+        for (var col = 0; col < this.moduleCount; col++) this.modules[row][col] = null;
+      }
+      this.setupPositionProbePattern(0, 0);
+      this.setupPositionProbePattern(this.moduleCount - 7, 0);
+      this.setupPositionProbePattern(0, this.moduleCount - 7);
+      this.setupPositionAdjustPattern();
+      this.setupTimingPattern();
+      this.setupTypeInfo(test, maskPattern);
+      if (this.typeNumber >= 7) this.setupTypeNumber(test);
+      if (this.dataCache == null) this.dataCache = QRCodeModel.createData(this.typeNumber, this.errorCorrectLevel, this.dataList);
+      this.mapData(this.dataCache, maskPattern);
+    },
+    setupPositionProbePattern: function(row, col) {
+      for (var r = -1; r <= 7; r++) {
+        if (row + r <= -1 || this.moduleCount <= row + r) continue;
+        for (var c = -1; c <= 7; c++) {
+          if (col + c <= -1 || this.moduleCount <= col + c) continue;
+          if ((0 <= r && r <= 6 && (c == 0 || c == 6)) || (0 <= c && c <= 6 && (r == 0 || r == 6)) || (2 <= r && r <= 4 && 2 <= c && c <= 4)) {
+            this.modules[row + r][col + c] = true;
+          } else {
+            this.modules[row + r][col + c] = false;
+          }
+        }
+      }
+    },
+    getBestMaskPattern: function() {
+      var minLostPoint = 0;
+      var pattern = 0;
+      for (var i = 0; i < 8; i++) {
+        this.makeImpl(true, i);
+        var lostPoint = QRUtil.getLostPoint(this);
+        if (i == 0 || minLostPoint > lostPoint) {
+          minLostPoint = lostPoint;
+          pattern = i;
+        }
+      }
+      return pattern;
+    },
+    setupTimingPattern: function() {
+      for (var r = 8; r < this.moduleCount - 8; r++) {
+        if (this.modules[r][6] != null) continue;
+        this.modules[r][6] = (r % 2 == 0);
+      }
+      for (var c = 8; c < this.moduleCount - 8; c++) {
+        if (this.modules[6][c] != null) continue;
+        this.modules[6][c] = (c % 2 == 0);
+      }
+    },
+    setupPositionAdjustPattern: function() {
+      var pos = QRUtil.getPatternPosition(this.typeNumber);
+      for (var i = 0; i < pos.length; i++) {
+        for (var j = 0; j < pos.length; j++) {
+          var row = pos[i];
+          var col = pos[j];
+          if (this.modules[row][col] != null) continue;
+          for (var r = -2; r <= 2; r++) {
+            for (var c = -2; c <= 2; c++) {
+              if (r == -2 || r == 2 || c == -2 || c == 2 || (r == 0 && c == 0)) {
+                this.modules[row + r][col + c] = true;
+              } else {
+                this.modules[row + r][col + c] = false;
+              }
+            }
+          }
+        }
+      }
+    },
+    setupTypeInfo: function(test, maskPattern) {
+      var data = (this.errorCorrectLevel << 3) | maskPattern;
+      var bits = QRUtil.getBCHTypeInfo(data);
+      for (var i = 0; i < 15; i++) {
+        var mod = (!test && ((bits >> i) & 1) == 1);
+        if (i < 6) this.modules[i][8] = mod;
+        else if (i < 8) this.modules[i + 1][8] = mod;
+        else this.modules[this.moduleCount - 15 + i][8] = mod;
+      }
+      for (var i = 0; i < 15; i++) {
+        var mod = (!test && ((bits >> i) & 1) == 1);
+        if (i < 8) this.modules[8][this.moduleCount - i - 1] = mod;
+        else if (i < 9) this.modules[8][15 - i - 1 + 1] = mod;
+        else this.modules[8][15 - i - 1] = mod;
+      }
+      this.modules[this.moduleCount - 8][8] = (!test);
+    },
+    setupTypeNumber: function(test) {
+      var bits = QRUtil.getBCHTypeNumber(this.typeNumber);
+      for (var i = 0; i < 18; i++) {
+        var mod = (!test && ((bits >> i) & 1) == 1);
+        this.modules[Math.floor(i / 3)][i % 3 + this.moduleCount - 8 - 3] = mod;
+      }
+      for (var i = 0; i < 18; i++) {
+        var mod = (!test && ((bits >> i) & 1) == 1);
+        this.modules[i % 3 + this.moduleCount - 8 - 3][Math.floor(i / 3)] = mod;
+      }
+    },
+    mapData: function(data, maskPattern) {
+      var inc = -1;
+      var row = this.moduleCount - 1;
+      var bitIndex = 7;
+      var byteIndex = 0;
+      for (var col = this.moduleCount - 1; col > 0; col -= 2) {
+        if (col == 6) col--;
+        while (true) {
+          for (var c = 0; c < 2; c++) {
+            if (this.modules[row][col - c] == null) {
+              var dark = false;
+              if (byteIndex < data.length) dark = (((data[byteIndex] >>> bitIndex) & 1) == 1);
+              var mask = QRUtil.getMask(maskPattern, row, col - c);
+              if (mask) dark = !dark;
+              this.modules[row][col - c] = dark;
+              bitIndex--;
+              if (bitIndex == -1) {
+                byteIndex++;
+                bitIndex = 7;
+              }
+            }
+          }
+          row += inc;
+          if (row < 0 || this.moduleCount <= row) {
+            row -= inc;
+            inc = -inc;
+            break;
+          }
+        }
+      }
+    }
+  };
+
+  QRCodeModel.createData = function(typeNumber, errorCorrectLevel, dataList) {
+    var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectLevel);
+    var buffer = new QRBitBuffer();
+    for (var i = 0; i < dataList.length; i++) {
+      var data = dataList[i];
+      buffer.put(data.mode, 4);
+      buffer.put(data.getLength(), QRUtil.getLengthInBits(data.mode, typeNumber));
+      data.write(buffer);
+    }
+    var totalDataCount = 0;
+    for (var i = 0; i < rsBlocks.length; i++) totalDataCount += rsBlocks[i].dataCount;
+    if (buffer.getLengthInBits() > totalDataCount * 8) throw new Error("code length overflow");
+    if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) buffer.put(0, 4);
+    while (buffer.getLengthInBits() % 8 != 0) buffer.putBit(false);
+    while (true) {
+      if (buffer.getLengthInBits() >= totalDataCount * 8) break;
+      buffer.put(0xEC, 8);
+      if (buffer.getLengthInBits() >= totalDataCount * 8) break;
+      buffer.put(0x11, 8);
+    }
+    return QRCodeModel.createBytes(buffer, rsBlocks);
+  };
+
+  QRCodeModel.createBytes = function(buffer, rsBlocks) {
+    var offset = 0;
+    var maxDcCount = 0;
+    var maxEcCount = 0;
+    var dcdata = new Array(rsBlocks.length);
+    var ecdata = new Array(rsBlocks.length);
+    for (var r = 0; r < rsBlocks.length; r++) {
+      var dcCount = rsBlocks[r].dataCount;
+      var ecCount = rsBlocks[r].totalCount - dcCount;
+      maxDcCount = Math.max(maxDcCount, dcCount);
+      maxEcCount = Math.max(maxEcCount, ecCount);
+      dcdata[r] = new Array(dcCount);
+      for (var i = 0; i < dcdata[r].length; i++) dcdata[r][i] = 0xff & buffer.buffer[i + offset];
+      offset += dcCount;
+      var rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+      var rawPoly = new QRPolynomial(dcdata[r], rsPoly.getLength() - 1);
+      var modPoly = rawPoly.mod(rsPoly);
+      ecdata[r] = new Array(rsPoly.getLength() - 1);
+      for (var i = 0; i < ecdata[r].length; i++) {
+        var modIndex = i + modPoly.getLength() - ecdata[r].length;
+        ecdata[r][i] = (modIndex >= 0) ? modPoly.get(modIndex) : 0;
+      }
+    }
+    var data = [];
+    for (var i = 0; i < maxDcCount; i++) {
+      for (var r = 0; r < rsBlocks.length; r++) {
+        if (i < dcdata[r].length) data.push(dcdata[r][i]);
+      }
+    }
+    for (var i = 0; i < maxEcCount; i++) {
+      for (var r = 0; r < rsBlocks.length; r++) {
+        if (i < ecdata[r].length) data.push(ecdata[r][i]);
+      }
+    }
+    return data;
+  };
+
+  /**
+   * High-level QRCode helper
+   */
+  window.QRCode = function(targetElement, options) {
+    if (typeof options === "string") {
+      options = { text: options };
+    }
+    options = options || {};
+    this.options = {
+      width: options.width || 256,
+      height: options.height || 256,
+      colorDark: options.colorDark || "#000000",
+      colorLight: options.colorLight || "#ffffff",
+      correctLevel: options.correctLevel || QRErrorCorrectLevel.H,
+      text: options.text || ""
+    };
+    this.targetElement = (typeof targetElement === "string") ? document.getElementById(targetElement) : targetElement;
+    if (this.options.text) {
+      this.makeCode(this.options.text);
+    }
+  };
+
+  window.QRCode.prototype.makeCode = function(text) {
+    var qr = new QRCodeModel(-1, this.options.correctLevel);
+    qr.addData(text);
+    qr.make();
+
+    var canvas = document.createElement("canvas");
+    canvas.width = this.options.width;
+    canvas.height = this.options.height;
+    var ctx = canvas.getContext("2d");
+
+    var nCount = qr.getModuleCount();
+    var nWidth = this.options.width / nCount;
+    var nHeight = this.options.height / nCount;
+
+    ctx.fillStyle = this.options.colorLight;
+    ctx.fillRect(0, 0, this.options.width, this.options.height);
+
+    for (var row = 0; row < nCount; row++) {
+      for (var col = 0; col < nCount; col++) {
+        ctx.fillStyle = qr.isDark(row, col) ? this.options.colorDark : this.options.colorLight;
+        var nLeft = Math.round(col * nWidth);
+        var nTop = Math.round(row * nHeight);
+        var w = Math.ceil((col + 1) * nWidth) - nLeft;
+        var h = Math.ceil((row + 1) * nHeight) - nTop;
+        ctx.fillRect(nLeft, nTop, w, h);
+      }
+    }
+
+    if (this.targetElement) {
+      this.targetElement.innerHTML = "";
+      this.targetElement.appendChild(canvas);
+    }
+    return canvas;
+  };
+
+  window.QRCode.CorrectLevel = QRErrorCorrectLevel;
+})();
+
+
+  </script>
+  <script>
+  /* === PLANTILLA OFICIAL GOOGLE APPS SCRIPT === */
+// Plantilla y generador del script oficial de Google Apps Script
+// para conectar la aplicación web con Google Sheets sin costo alguno.
+
+const GOOGLE_APPS_SCRIPT_CODE = `/**
+ * ============================================================
+ * CONECTOR OFICIAL: QR ENCUESTAS & REPUTACIÓN A GOOGLE SHEETS
+ * ============================================================
+ * Este script recibe automáticamente las encuestas y registros
+ * de los clientes y los guarda en tiempo real en esta hoja.
+ *
+ * INSTRUCCIONES:
+ * 1. Pega este código completo en: Extensiones > Apps Script.
+ * 2. Clic en el botón "Implementar" (arriba a la derecha) > "Nueva implementación".
+ * 3. Selecciona tipo: "Aplicación web".
+ * 4. Configura:
+ *    - Ejecutar como: "Yo" (tu cuenta)
+ *    - Quién tiene acceso: "Cualquier usuario" (Anyone)
+ * 5. Clic en "Implementar", autoriza los permisos y COPIA la "URL de la aplicación web".
+ * 6. Pega esa URL en el Panel de Administración de tu sistema QR.
+ */
+
+function doPost(e) {
+  var lock = LockService.getScriptLock();
+  lock.tryLock(10000);
+
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Encuestas");
+
+    // Si la hoja "Encuestas" no existe, la creamos
+    if (!sheet) {
+      sheet = ss.insertSheet("Encuestas");
+    }
+
+    // Si la hoja está vacía, creamos los encabezados formateados
+    if (sheet.getLastRow() === 0) {
+      var headers = [
+        "Fecha y Hora",
+        "Restaurante",
+        "Nombre del Cliente",
+        "WhatsApp / Celular",
+        "Cumpleaños (DD/MM)",
+        "Calificación General",
+        "Detalle Aspectos y Observaciones",
+        "Comentario General",
+        "¿Fue a Google Maps?",
+        "¿Solicita Contacto Gerencial?"
+      ];
+
+      var headerRange = sheet.getRange(1, 1, 1, headers.length);
+      headerRange.setValues([headers]);
+      headerRange.setBackground("#2c3e50");
+      headerRange.setFontColor("#ffffff");
+      headerRange.setFontWeight("bold");
+      headerRange.setHorizontalAlignment("center");
+      sheet.setFrozenRows(1);
+    }
+
+    // Leer los datos recibidos
+    var data = {};
+    if (e.postData && e.postData.contents) {
+      try {
+        data = JSON.parse(e.postData.contents);
+      } catch (err) {
+        data = e.parameter;
+      }
+    } else {
+      data = e.parameter;
+    }
+
+    var timestamp = new Date();
+    var formattedDate = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+
+    var row = [
+      formattedDate,
+      data.restaurantName || data.restaurantId || "Sin Nombre",
+      data.customerName || "Anónimo",
+      data.customerPhone || "N/A",
+      data.customerBirthday || "N/A",
+      data.ratingOverall || "-",
+      data.aspectsSummary || ("Cal: " + (data.ratingQuality || "-") + " | Ase: " + (data.ratingCleanliness || "-") + " | Ser: " + (data.ratingService || "-")),
+      data.comment || "Sin comentario",
+      data.wentToGoogle ? "SÍ (5★)" : "NO (Interno)",
+      data.requestedContact ? "SÍ (Urgente)" : "No"
+    ];
+
+    sheet.appendRow(row);
+
+    var lastRow = sheet.getLastRow();
+    var overallRating = parseInt(data.ratingOverall, 10);
+
+    // Formato condicional visual rápido
+    if (overallRating === 5) {
+      sheet.getRange(lastRow, 6).setBackground("#d4edda").setFontColor("#155724"); // Verde suave
+    } else if (overallRating <= 3) {
+      sheet.getRange(lastRow, 6).setBackground("#f8d7da").setFontColor("#721c24"); // Rojo suave de alerta
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      message: "Encuesta guardada con éxito en Google Sheets"
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "error",
+      message: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    status: "ok",
+    message: "Conector activo y listo para recibir encuestas"
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+`;
+
+window.GOOGLE_APPS_SCRIPT_CODE = GOOGLE_APPS_SCRIPT_CODE;
+
+
+  </script>
+  <script>
+  /* === GESTOR DE DATOS Y MULTI-RESTAURANTE === */
+// Gestión de datos, almacenamiento local y multi-restaurante
+
+const DEFAULT_RESTAURANTS = [
+  {
+    id: 'milhojas',
+    name: 'Pastelería & Café Milhojas',
+    tagline: 'Tradición artesanal y momentos dulces',
+    logo: 'https://cdn-icons-png.flaticon.com/512/992/992747.png',
+    primaryColor: '#b45309', // Caramelo / Miel
+    accentColor: '#f59e0b',
+    googleMapsUrl: 'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4',
+    rewardText: '🎁 ¡Postre artesanal de cortesía en tu semana de cumpleaños y beneficios VIP exclusivos!',
+    hasImmediateReward: true,
+    immediateRewardText: '☕ Muestra tu reseña al mesero y recibe hoy un café espresso de cortesía en tu mesa',
+    sheetsWebhookUrl: '',
+    whatsappContact: '+573001234567',
+    questions: [
+      { id: 'quality', label: 'Sabor y Calidad de la Pastelería', icon: '🍰' },
+      { id: 'cleanliness', label: 'Aseo y Ambiente del Café', icon: '✨' },
+      { id: 'service', label: 'Atención y Rapidez del Personal', icon: '☕' }
+    ]
+  },
+  {
+    id: 'burger-station',
+    name: 'Burger & Smoke Station',
+    tagline: 'Hamburguesas artesanales al carbón',
+    logo: 'https://cdn-icons-png.flaticon.com/512/3075/3075977.png',
+    primaryColor: '#dc2626', // Rojo fuego
+    accentColor: '#f97316',
+    googleMapsUrl: 'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4',
+    rewardText: '🍔 ¡Combo 2x1 en tu cumpleaños y papas rústicas gratis en tu próxima compra!',
+    hasImmediateReward: true,
+    immediateRewardText: '🍟 Muestra tu reseña al mesero y recibe hoy una porción de papas rústicas de cortesía',
+    sheetsWebhookUrl: '',
+    whatsappContact: '+573109876543',
+    questions: [
+      { id: 'quality', label: 'Término de la Carne y Sabor', icon: '🍔' },
+      { id: 'cleanliness', label: 'Limpieza y Música del Local', icon: '🎸' },
+      { id: 'service', label: 'Velocidad de Entrega y Servicio', icon: '⚡' }
+    ]
+  }
+];
+
+const STORAGE_KEYS = {
+  RESTAURANTS: 'qr_restaurants_config_v1',
+  SUBMISSIONS: 'qr_submissions_cache_v1'
+};
+
+const StorageManager = {
+  // Obtener lista completa de restaurantes
+  getRestaurants() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.RESTAURANTS);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Error al leer de localStorage, usando predeterminados:', e);
+    }
+    // Si no hay datos, inicializamos con los predeterminados
+    this.saveRestaurants(DEFAULT_RESTAURANTS);
+    return DEFAULT_RESTAURANTS;
+  },
+
+  // Guardar lista completa
+  saveRestaurants(restaurants) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.RESTAURANTS, JSON.stringify(restaurants));
+    } catch (e) {
+      console.error('Error guardando restaurantes:', e);
+    }
+  },
+
+  // Obtener un restaurante por slug / id
+  getRestaurant(id) {
+    const list = this.getRestaurants();
+    return list.find(r => r.id.toLowerCase() === (id || '').toLowerCase()) || list[0];
+  },
+
+  // Guardar o actualizar un restaurante individual
+  upsertRestaurant(restaurantData) {
+    const list = this.getRestaurants();
+    const index = list.findIndex(r => r.id.toLowerCase() === restaurantData.id.toLowerCase());
+
+    if (index >= 0) {
+      list[index] = { ...list[index], ...restaurantData };
+    } else {
+      list.push(restaurantData);
+    }
+    this.saveRestaurants(list);
+    return list;
+  },
+
+  // Eliminar restaurante
+  deleteRestaurant(id) {
+    let list = this.getRestaurants();
+    list = list.filter(r => r.id.toLowerCase() !== id.toLowerCase());
+    this.saveRestaurants(list);
+    return list;
+  },
+
+  // Obtener todas las respuestas registradas localmente (con autoreparación de datos de prueba)
+  getSubmissions(restaurantId = null) {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS);
+      let list = stored ? JSON.parse(stored) : [];
+
+      // Autocorrección: si la calificación general fue 5 estrellas, el destino siempre fue Google Maps
+      let modified = false;
+      list = list.map(s => {
+        if (parseInt(s.ratingOverall, 10) === 5 && !s.wentToGoogle) {
+          s.wentToGoogle = true;
+          modified = true;
+        }
+        return s;
+      });
+      if (modified) {
+        localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(list));
+      }
+
+      if (!restaurantId) return list;
+      return list.filter(s => s.restaurantId.toLowerCase() === restaurantId.toLowerCase());
+    } catch (e) {
+      return [];
+    }
+  },
+
+  // Actualizar una respuesta existente (ej. cuando el cliente solicita contacto)
+  async updateSubmission(id, patch) {
+    try {
+      const list = this.getSubmissions();
+      // Si no hay id, actualizar la más reciente
+      const index = id ? list.findIndex(s => s.id === id) : 0;
+      if (index >= 0 && list[index]) {
+        list[index] = { ...list[index], ...patch };
+        localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(list));
+
+        // Si hay webhook de Google Sheets, enviar actualización
+        if (list[index].sheetsWebhookUrl && list[index].sheetsWebhookUrl.trim().startsWith('http')) {
+          try {
+            await fetch(list[index].sheetsWebhookUrl.trim(), {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(list[index])
+            });
+          } catch (e) { }
+        }
+        return list[index];
+      }
+    } catch (e) {
+      console.error('Error actualizando respuesta:', e);
+    }
+  },
+
+  // Eliminar respuestas registradas (para pruebas o limpieza)
+  clearSubmissions(restaurantId = null) {
+    if (!restaurantId) {
+      localStorage.removeItem(STORAGE_KEYS.SUBMISSIONS);
+    } else {
+      let list = this.getSubmissions();
+      list = list.filter(s => s.restaurantId.toLowerCase() !== restaurantId.toLowerCase());
+      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(list));
+    }
+  },
+
+  // Guardar respuesta y enviarla a Google Sheets
+  async saveSubmission(payload) {
+    // 1. Guardar en memoria local primero (garantiza cero pérdida de datos)
+    try {
+      const list = this.getSubmissions();
+      payload.id = 'sub_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+      payload.createdAt = new Date().toISOString();
+      list.unshift(payload);
+      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(list));
+    } catch (e) {
+      console.error('Error guardando en caché local:', e);
+    }
+
+    // 2. Enviar a Google Sheets si hay webhook configurado
+    if (payload.sheetsWebhookUrl && payload.sheetsWebhookUrl.trim().startsWith('http')) {
+      try {
+        await fetch(payload.sheetsWebhookUrl.trim(), {
+          method: 'POST',
+          mode: 'no-cors', // Evita problemas de CORS con Google Apps Script
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        console.log('✅ Enviado a Google Sheets exitosamente');
+      } catch (err) {
+        console.warn('⚠️ Fallo el envío directo a Google Sheets (queda respaldado localmente):', err);
+      }
+    }
+
+    return payload;
+  },
+
+  // Estadísticas globales para el panel de administración
+  getGlobalStats() {
+    const submissions = this.getSubmissions();
+    const currentMonth = new Date().getMonth() + 1; // 1 - 12
+
+    let totalSurveys = submissions.length;
+    let fiveStarCount = 0;
+    let lowStarCount = 0;
+    let birthdayThisMonth = 0;
+
+    submissions.forEach(sub => {
+      const rating = parseInt(sub.ratingOverall, 10);
+      if (rating === 5) fiveStarCount++;
+      if (rating <= 4) lowStarCount++;
+
+      if (sub.customerBirthday) {
+        const parts = sub.customerBirthday.split('/');
+        if (parts.length >= 2) {
+          const month = parseInt(parts[1], 10);
+          if (month === currentMonth) birthdayThisMonth++;
+        }
+      }
+    });
+
+    return {
+      totalSurveys,
+      fiveStarCount,
+      fiveStarPercent: totalSurveys > 0 ? Math.round((fiveStarCount / totalSurveys) * 100) : 0,
+      lowStarCount,
+      birthdayThisMonth
+    };
+  }
+};
+
+window.StorageManager = StorageManager;
+
+
+  </script>
+  <script>
+  /* === VISTA Y EMBUDO DEL CLIENTE === */
+// Lógica de la Encuesta del Cliente, Captura VIP y Embudo Inteligente
+
+const SurveyApp = {
+  restaurant: null,
+  currentStep: 1,
+  formData: {
+    customerName: '',
+    customerPhone: '',
+    customerBirthday: '',
+    ratingQuality: 5,
+    ratingCleanliness: 5,
+    ratingService: 5,
+    ratingOverall: 5,
+    comment: '',
+    wentToGoogle: false,
+    requestedContact: false
+  },
+
+  init() {
+    this.loadRestaurant();
+    this.renderHeader();
+    this.renderDynamicAspects();
+    this.setupEventListeners();
+    this.showStep(1);
+  },
+
+  // Identificar el restaurante activo
+  loadRestaurant() {
+    const urlParams = new URLSearchParams(window.location.search);
+    let slug = urlParams.get('r');
+
+    if (!slug && window.location.hash) {
+      const match = window.location.hash.match(/#\/r\/([^?&]+)/);
+      if (match) slug = match[1];
+    }
+
+    this.restaurant = window.StorageManager.getRestaurant(slug || 'milhojas');
+
+    // Aplicar variables de color de la marca
+    document.documentElement.style.setProperty('--brand-primary', this.restaurant.primaryColor || '#b45309');
+    document.documentElement.style.setProperty('--brand-accent', this.restaurant.accentColor || '#f59e0b');
+  },
+
+  renderHeader() {
+    const logoEl = document.getElementById('restaurant-logo');
+    const nameEl = document.getElementById('restaurant-name');
+    const taglineEl = document.getElementById('restaurant-tagline');
+    const rewardEl = document.getElementById('reward-text-display');
+
+    if (logoEl) logoEl.src = this.restaurant.logo || 'https://cdn-icons-png.flaticon.com/512/992/992747.png';
+    if (nameEl) nameEl.textContent = this.restaurant.name;
+    if (taglineEl) taglineEl.textContent = this.restaurant.tagline || 'Tu satisfacción es lo primero';
+    if (rewardEl) rewardEl.textContent = this.restaurant.rewardText || '¡Regístrate para recibir beneficios exclusivos!';
+  },
+
+  setupEventListeners() {
+    // Paso 1: Formulario VIP
+    const vipForm = document.getElementById('vip-form');
+    if (vipForm) {
+      vipForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = document.getElementById('vip-name').value.trim();
+        const phone = document.getElementById('vip-phone').value.trim();
+        const birthDay = document.getElementById('birth-day').value;
+        const birthMonth = document.getElementById('birth-month').value;
+        const terms = document.getElementById('vip-terms').checked;
+
+        if (!name) {
+          alert('Por favor ingresa tu nombre.');
+          return;
+        }
+        if (!phone || phone.length < 7) {
+          alert('Por favor ingresa un número de WhatsApp válido.');
+          return;
+        }
+        if (!birthDay || !birthMonth) {
+          alert('Por favor selecciona el día y mes de tu cumpleaños.');
+          return;
+        }
+        if (!terms) {
+          alert('Debes autorizar el tratamiento de datos para recibir tus beneficios.');
+          return;
+        }
+
+        this.formData.customerName = name;
+        this.formData.customerPhone = phone;
+        this.formData.customerBirthday = `${birthDay.padStart(2, '0')}/${birthMonth.padStart(2, '0')}`;
+
+        this.showStep(2);
+      });
+    }
+
+    // Paso 2: Selección de Estrellas Generales
+    const starsContainer = document.getElementById('overall-stars-container');
+    if (starsContainer) {
+      const stars = starsContainer.querySelectorAll('.star-btn');
+      stars.forEach(star => {
+        star.addEventListener('click', (e) => {
+          const val = parseInt(star.getAttribute('data-value'), 10);
+          this.setOverallRating(val);
+        });
+      });
+    }
+
+    // Paso 2: Formulario de Encuesta
+    const surveyForm = document.getElementById('survey-form');
+    if (surveyForm) {
+      surveyForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        this.formData.comment = document.getElementById('survey-comment').value.trim();
+        await this.submitSurvey();
+      });
+    }
+
+    // Inicializar estrellas en 5 por defecto
+    this.setOverallRating(5);
+  },
+
+  // Renderizar aspectos dinámicos configurados con su recuadro de observaciones
+  renderDynamicAspects() {
+    const container = document.getElementById('survey-dynamic-aspects-container');
+    if (!container) return;
+
+    const questions = (this.restaurant && this.restaurant.questions && this.restaurant.questions.length > 0)
+      ? this.restaurant.questions
+      : [
+          { id: 'quality', label: 'Sabor y Calidad de la Comida / Producto', icon: '🍰' },
+          { id: 'cleanliness', label: 'Aseo y Presentación de las Instalaciones', icon: '✨' },
+          { id: 'service', label: 'Atención y Amabilidad del Personal', icon: '☕' }
+        ];
+
+    // Inicializar datos de aspectos
+    this.formData.aspectsData = questions.map((q, idx) => ({
+      id: q.id || `aspect_${idx + 1}`,
+      label: q.label,
+      rating: 5,
+      note: ''
+    }));
+
+    const ratingLabels = {
+      1: '1 - Malo',
+      2: '2 - Regular',
+      3: '3 - Aceptable',
+      4: '4 - Bueno',
+      5: '5 - Excelente'
+    };
+
+    container.innerHTML = questions.map((q, idx) => `
+      <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 shadow-sm transition hover:border-slate-300">
+        <div class="flex items-center justify-between mb-2">
+          <label class="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+            <span>${q.icon || '⭐'}</span> <span>${q.label}</span>
+          </label>
+          <span id="aspect-badge-${idx}" class="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+            5 - Excelente
+          </span>
+        </div>
+
+        <!-- Botones de Calificación 1 a 5 -->
+        <div class="grid grid-cols-5 gap-1.5 text-center mb-2.5">
+          <button type="button" data-aspect="${idx}" data-val="1" class="aspect-pill-${idx} rating-pill py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white text-slate-600">1</button>
+          <button type="button" data-aspect="${idx}" data-val="2" class="aspect-pill-${idx} rating-pill py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white text-slate-600">2</button>
+          <button type="button" data-aspect="${idx}" data-val="3" class="aspect-pill-${idx} rating-pill py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white text-slate-600">3</button>
+          <button type="button" data-aspect="${idx}" data-val="4" class="aspect-pill-${idx} rating-pill py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white text-slate-600">4</button>
+          <button type="button" data-aspect="${idx}" data-val="5" class="aspect-pill-${idx} rating-pill active-pill py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white text-slate-600">5</button>
+        </div>
+
+        <!-- Recuadro de Observación Específica por Ítem -->
+        <div>
+          <input type="text"
+                 id="aspect-note-${idx}"
+                 placeholder="¿Alguna observación sobre este punto? (Opcional)"
+                 class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs placeholder:text-slate-400 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition">
+        </div>
+      </div>
+    `).join('');
+
+    // Asignar listeners a los botones y campos de texto
+    questions.forEach((q, idx) => {
+      const pills = container.querySelectorAll(`.aspect-pill-${idx}`);
+      const badge = document.getElementById(`aspect-badge-${idx}`);
+      const noteInput = document.getElementById(`aspect-note-${idx}`);
+
+      pills.forEach(pill => {
+        pill.addEventListener('click', () => {
+          pills.forEach(p => p.classList.remove('active-pill'));
+          pill.classList.add('active-pill');
+
+          const val = parseInt(pill.getAttribute('data-val'), 10);
+          this.formData.aspectsData[idx].rating = val;
+          if (badge) badge.textContent = ratingLabels[val] || `${val} Estrellas`;
+        });
+      });
+
+      if (noteInput) {
+        noteInput.addEventListener('input', (e) => {
+          this.formData.aspectsData[idx].note = e.target.value.trim();
+        });
+      }
+    });
+  },
+
+  setOverallRating(value) {
+    this.formData.ratingOverall = value;
+    const starsContainer = document.getElementById('overall-stars-container');
+    if (!starsContainer) return;
+
+    const stars = starsContainer.querySelectorAll('.star-btn');
+    const label = document.getElementById('overall-rating-label');
+
+    stars.forEach(s => {
+      const sVal = parseInt(s.getAttribute('data-value'), 10);
+      if (sVal <= value) {
+        s.classList.add('text-amber-400');
+        s.classList.remove('text-slate-300');
+      } else {
+        s.classList.remove('text-amber-400');
+        s.classList.add('text-slate-300');
+      }
+    });
+
+    const labels = {
+      5: '⭐ ¡Excelente experiencia!',
+      4: '😊 Muy buena experiencia',
+      3: '😐 Regular / Puede mejorar',
+      2: '🙁 Insatisfecho',
+      1: '😡 Muy mala experiencia'
+    };
+    if (label) label.textContent = labels[value] || '';
+  },
+
+  showStep(stepNumber) {
+    this.currentStep = stepNumber;
+    ['step-1', 'step-2', 'step-3'].forEach((id, idx) => {
+      const el = document.getElementById(id);
+      if (el) {
+        if (idx + 1 === stepNumber) {
+          el.classList.remove('hidden');
+          el.classList.add('animate-fadeIn');
+        } else {
+          el.classList.add('hidden');
+        }
+      }
+    });
+
+    // Desplazar suavemente arriba
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  },
+
+  async submitSurvey() {
+    const submitBtn = document.getElementById('submit-survey-btn');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `
+        <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+        </svg> Guardando opinión...`;
+    }
+
+    const aspectsData = this.formData.aspectsData || [];
+
+    // Construir resumen legible de aspectos y observaciones
+    const aspectsSummary = aspectsData.map(a => {
+      const noteStr = a.note ? ` ("${a.note}")` : '';
+      return `${a.label}: ${a.rating}★${noteStr}`;
+    }).join(' | ');
+
+    // Campos retrocompatibles
+    const ratingQuality = aspectsData[0] ? aspectsData[0].rating : 5;
+    const ratingCleanliness = aspectsData[1] ? aspectsData[1].rating : 5;
+    const ratingService = aspectsData[2] ? aspectsData[2].rating : 5;
+
+    const isFiveStars = (parseInt(this.formData.ratingOverall, 10) === 5);
+    this.formData.wentToGoogle = isFiveStars;
+
+    const payload = {
+      ...this.formData,
+      restaurantId: this.restaurant.id,
+      restaurantName: this.restaurant.name,
+      sheetsWebhookUrl: this.restaurant.sheetsWebhookUrl || '',
+      wentToGoogle: isFiveStars,
+      requestedContact: false,
+      aspects: aspectsData,
+      aspectsSummary,
+      ratingQuality,
+      ratingCleanliness,
+      ratingService
+    };
+
+    // Guardar local y enviar a Google Sheets
+    const saved = await window.StorageManager.saveSubmission(payload);
+    this.currentSubmissionId = saved ? saved.id : null;
+
+    // Mostrar Paso 3: Bifurcación Inteligente
+    this.showStep(3);
+    this.renderResultBranch();
+  },
+
+  triggerEmojiCelebration() {
+    const emojis = ['🎉', '⭐', '🎂', '✨', '🍰', '💛'];
+    for (let i = 0; i < 20; i++) {
+      const el = document.createElement('div');
+      el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      el.style.position = 'fixed';
+      el.style.left = Math.random() * 90 + 'vw';
+      el.style.top = '-20px';
+      el.style.fontSize = (Math.random() * 20 + 20) + 'px';
+      el.style.zIndex = '9999';
+      el.style.pointerEvents = 'none';
+      el.style.transition = 'all 2s ease-out';
+      document.body.appendChild(el);
+
+      setTimeout(() => {
+        el.style.top = (window.innerHeight + 50) + 'px';
+        el.style.transform = `rotate(${Math.random() * 360}deg) scale(0.6)`;
+        el.style.opacity = '0';
+      }, 50);
+
+      setTimeout(() => {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }, 2200);
+    }
+  },
+
+  renderResultBranch() {
+    const isFiveStars = this.formData.ratingOverall === 5;
+    const branchSuccess = document.getElementById('branch-google-success');
+    const branchInternal = document.getElementById('branch-internal-feedback');
+
+    if (isFiveStars) {
+      if (branchSuccess) branchSuccess.classList.remove('hidden');
+      if (branchInternal) branchInternal.classList.add('hidden');
+
+      // Lanzar confeti festivo
+      if (typeof confetti === 'function') {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      } else {
+        // Fallback visual offline
+        this.triggerEmojiCelebration();
+      }
+
+      // Nombre y comentario
+      const clientNameEl = document.getElementById('success-client-name');
+      const commentPreview = document.getElementById('comment-preview-box');
+      const commentText = document.getElementById('comment-preview-text');
+
+      if (clientNameEl) clientNameEl.textContent = this.formData.customerName;
+
+      // Mostrar u ocultar Gratificación Inmediata si el restaurante la configuró
+      const immediateCard = document.getElementById('immediate-reward-card');
+      const immediateText = document.getElementById('immediate-reward-display');
+
+      if (this.restaurant && this.restaurant.hasImmediateReward && this.restaurant.immediateRewardText && this.restaurant.immediateRewardText.trim()) {
+        if (immediateCard) immediateCard.classList.remove('hidden');
+        if (immediateText) immediateText.textContent = this.restaurant.immediateRewardText.trim();
+      } else {
+        if (immediateCard) immediateCard.classList.add('hidden');
+      }
+
+      if (this.formData.comment) {
+        if (commentPreview) commentPreview.classList.remove('hidden');
+        if (commentText) commentText.textContent = `"${this.formData.comment}"`;
+      } else {
+        if (commentPreview) commentPreview.classList.add('hidden');
+      }
+
+      // Botón de Google Maps con copia de texto
+      const copyGoogleBtn = document.getElementById('copy-and-google-btn');
+      if (copyGoogleBtn) {
+        copyGoogleBtn.onclick = () => {
+          if (this.formData.comment) {
+            navigator.clipboard.writeText(this.formData.comment).then(() => {
+              copyGoogleBtn.innerHTML = '✅ ¡Comentario copiado! Abriendo Google Maps...';
+            }).catch(() => {
+              console.log('Clipboard fallback');
+            });
+          }
+
+          setTimeout(() => {
+            window.open(this.restaurant.googleMapsUrl, '_blank');
+          }, 400);
+        };
+      }
+
+    } else {
+      // 1 a 4 estrellas: Soporte interno, empatía, NO Google
+      if (branchSuccess) branchSuccess.classList.add('hidden');
+      if (branchInternal) branchInternal.classList.remove('hidden');
+
+      const clientNameInternal = document.getElementById('internal-client-name');
+      if (clientNameInternal) clientNameInternal.textContent = this.formData.customerName;
+
+      const restNameInternal = document.getElementById('internal-rest-name');
+      if (restNameInternal) restNameInternal.textContent = this.restaurant.name;
+
+      // Botones de solicitud de contacto
+      const contactYesBtn = document.getElementById('contact-yes-btn');
+      const contactNoBtn = document.getElementById('contact-no-btn');
+      const contactFeedbackEl = document.getElementById('contact-feedback-msg');
+
+      if (contactYesBtn) {
+        contactYesBtn.onclick = async () => {
+          this.formData.requestedContact = true;
+          contactYesBtn.parentElement.classList.add('hidden');
+          if (contactFeedbackEl) {
+            contactFeedbackEl.classList.remove('hidden');
+            contactFeedbackEl.textContent = '✅ Solicitud enviada. La administración se comunicará contigo vía WhatsApp en breve.';
+          }
+          // Actualizar envío existente en almacenamiento y Google Sheets
+          await window.StorageManager.updateSubmission(this.currentSubmissionId, {
+            requestedContact: true
+          });
+        };
+      }
+
+      if (contactNoBtn) {
+        contactNoBtn.onclick = () => {
+          contactNoBtn.parentElement.classList.add('hidden');
+          if (contactFeedbackEl) {
+            contactFeedbackEl.classList.remove('hidden');
+            contactFeedbackEl.textContent = 'Agradecemos tu honestidad. Trabajaremos en mejorar para tu próxima visita.';
+          }
+        };
+      }
+    }
+  }
+};
+
+window.SurveyApp = SurveyApp;
+
+  </script>
+  <script>
+  /* === ESTUDIO QR Y HABLADOR DE MESA === */
+// Estudio de Generación de Códigos QR y Habladores de Mesa Imprimibles
+
+const QRStudio = {
+  currentRestaurant: null,
+  qrCanvas: null,
+
+  openStudio(restaurantId) {
+    this.currentRestaurant = window.StorageManager.getRestaurant(restaurantId);
+    if (!this.currentRestaurant) return;
+
+    const modal = document.getElementById('qr-studio-modal');
+    if (modal) modal.classList.remove('hidden');
+
+    this.renderStudio();
+  },
+
+  closeStudio() {
+    const modal = document.getElementById('qr-studio-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  renderStudio() {
+    const r = this.currentRestaurant;
+    
+    // Configurar URL destino (soporta file://, localhost y dominios reales)
+    const baseUrlInput = document.getElementById('qr-base-url-input');
+    let origin = window.location.origin;
+    if (!origin || origin === 'null' || window.location.protocol === 'file:') {
+      origin = 'http://localhost:3000';
+    }
+    const defaultUrl = `${origin}/?r=${r.id}`;
+    if (baseUrlInput) {
+      if (!baseUrlInput.value || baseUrlInput.dataset.restId !== r.id) {
+        baseUrlInput.value = defaultUrl;
+        baseUrlInput.dataset.restId = r.id;
+      }
+    }
+
+    const targetUrl = baseUrlInput ? baseUrlInput.value : defaultUrl;
+
+    // Generar el código QR (Vista previa compacta y nítida)
+    const qrContainer = document.getElementById('qr-preview-canvas');
+    if (qrContainer) {
+      qrContainer.innerHTML = '';
+      const qr = new window.QRCode(qrContainer, {
+        text: targetUrl,
+        width: 170,
+        height: 170,
+        colorDark: r.primaryColor || '#000000',
+        colorLight: '#ffffff',
+        correctLevel: window.QRCode.CorrectLevel.H
+      });
+      this.qrCanvas = qrContainer.querySelector('canvas');
+    }
+
+    // Actualizar vista previa del Hablador de Mesa
+    this.updateTableTentPreview(targetUrl);
+  },
+
+  updateTableTentPreview(targetUrl) {
+    const r = this.currentRestaurant;
+    const tentLogo = document.getElementById('tent-logo');
+    const tentRestName = document.getElementById('tent-rest-name');
+    const tentReward = document.getElementById('tent-reward-text');
+    const tentQrTarget = document.getElementById('tent-qr-container');
+
+    if (tentLogo) tentLogo.src = r.logo || 'https://cdn-icons-png.flaticon.com/512/992/992747.png';
+    if (tentRestName) tentRestName.textContent = r.name;
+    if (tentReward) tentReward.textContent = r.rewardText || '¡Regístrate para recibir beneficios exclusivos en tu cumpleaños!';
+
+    if (tentQrTarget) {
+      tentQrTarget.innerHTML = '';
+      new window.QRCode(tentQrTarget, {
+        text: targetUrl,
+        width: 145,
+        height: 145,
+        colorDark: '#1e293b',
+        colorLight: '#ffffff',
+        correctLevel: window.QRCode.CorrectLevel.H
+      });
+    }
+
+    // Aplicar color en el borde del hablador
+    const tentCard = document.getElementById('printable-table-tent');
+    if (tentCard) {
+      tentCard.style.borderColor = r.primaryColor || '#b45309';
+    }
+  },
+
+  downloadQR() {
+    // Generar canvas de alta resolución (600x600 px) para impresión profesional
+    const baseUrlInput = document.getElementById('qr-base-url-input');
+    const targetUrl = baseUrlInput ? baseUrlInput.value : `${window.location.origin}/?r=${this.currentRestaurant.id}`;
+
+    const tempDiv = document.createElement('div');
+    const qr = new window.QRCode(tempDiv, {
+      text: targetUrl,
+      width: 600,
+      height: 600,
+      colorDark: this.currentRestaurant.primaryColor || '#000000',
+      colorLight: '#ffffff',
+      correctLevel: window.QRCode.CorrectLevel.H
+    });
+
+    const canvas = tempDiv.querySelector('canvas');
+    if (!canvas) {
+      alert('Error generando QR en alta resolución.');
+      return;
+    }
+
+    // Descargar imagen PNG de alta resolución
+    const imageUri = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `QR_${this.currentRestaurant.id}_AltaResolucion.png`;
+    link.href = imageUri;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  },
+
+  printTableTent() {
+    // Abre el diálogo de impresión con el hablador de mesa optimizado
+    window.print();
+  }
+};
+
+window.QRStudio = QRStudio;
+
+  </script>
+  <script>
+  /* === PANEL SUPERADMIN Y CRM DE RESEÑAS === */
+// Lógica del Panel de Control / SuperAdmin Multi-Restaurante
+
+const AdminApp = {
+  editingId: null,
+
+  init() {
+    this.renderStats();
+    this.renderRestaurantsList();
+    this.renderSubmissionsTable();
+    this.setupEventListeners();
+  },
+
+  renderStats() {
+    const stats = window.StorageManager.getGlobalStats();
+
+    const totalEl = document.getElementById('stat-total-surveys');
+    const fiveStarEl = document.getElementById('stat-five-stars');
+    const lowStarEl = document.getElementById('stat-low-stars');
+    const birthdaysEl = document.getElementById('stat-birthdays');
+
+    if (totalEl) totalEl.textContent = stats.totalSurveys;
+    if (fiveStarEl) fiveStarEl.textContent = `${stats.fiveStarCount} (${stats.fiveStarPercent}%)`;
+    if (lowStarEl) lowStarEl.textContent = stats.lowStarCount;
+    if (birthdaysEl) birthdaysEl.textContent = stats.birthdayThisMonth;
+  },
+
+  renderRestaurantsList() {
+    const container = document.getElementById('restaurants-list-container');
+    if (!container) return;
+
+    const list = window.StorageManager.getRestaurants();
+
+    if (list.length === 0) {
+      container.innerHTML = `
+        <div class="p-8 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
+          <p class="text-slate-500 mb-4">No tienes restaurantes configurados aún.</p>
+          <button onclick="AdminApp.openModal()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl font-medium shadow hover:bg-indigo-700 transition">
+            + Crear Primer Restaurante
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = list.map(r => {
+      const submissions = window.StorageManager.getSubmissions(r.id);
+      const fiveStars = submissions.filter(s => parseInt(s.ratingOverall, 10) === 5).length;
+
+      return `
+        <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+          <div>
+            <div class="flex items-start justify-between gap-4 mb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-14 h-14 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-2 shadow-inner">
+                  <img src="${r.logo || 'https://cdn-icons-png.flaticon.com/512/992/992747.png'}" alt="${r.name}" class="max-w-full max-h-full object-contain">
+                </div>
+                <div>
+                  <h3 class="font-bold text-slate-800 text-lg">${r.name}</h3>
+                  <div class="flex items-center gap-2 mt-0.5">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-slate-100 text-slate-600">
+                      /r/${r.id}
+                    </span>
+                    <span class="w-3 h-3 rounded-full border border-white shadow-sm" style="background-color: ${r.primaryColor || '#b45309'}"></span>
+                  </div>
+                </div>
+              </div>
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Activo
+              </span>
+            </div>
+
+            <p class="text-xs text-slate-500 line-clamp-2 mb-4 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+              🎁 <strong>Gancho:</strong> ${r.rewardText || 'Sin beneficio asignado'}
+            </p>
+
+            <div class="grid grid-cols-2 gap-2 text-center text-xs text-slate-600 mb-5">
+              <div class="bg-amber-50/60 p-2 rounded-xl border border-amber-100/60">
+                <span class="block font-bold text-amber-700 text-base">${submissions.length}</span>
+                <span>Encuestas</span>
+              </div>
+              <div class="bg-emerald-50/60 p-2 rounded-xl border border-emerald-100/60">
+                <span class="block font-bold text-emerald-700 text-base">${fiveStars}</span>
+                <span>5★ a Google</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 flex flex-wrap items-center gap-2">
+            <a href="?r=${r.id}" target="_blank" class="flex-1 text-center px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium transition">
+              📱 Ver Encuesta
+            </a>
+            <button onclick="window.QRStudio.openStudio('${r.id}')" class="flex-1 text-center px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 rounded-xl text-xs font-medium transition">
+              🎯 QR & Hablador
+            </button>
+            <button onclick="AdminApp.editRestaurant('${r.id}')" class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition" title="Editar">
+              ✏️
+            </button>
+            <button onclick="AdminApp.deleteRestaurant('${r.id}')" class="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition" title="Eliminar">
+              🗑️
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  },
+
+  setupEventListeners() {
+    // Modal de edición / creación
+    const form = document.getElementById('restaurant-modal-form');
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.saveModalData();
+      });
+    }
+
+    // Color picker sincronizado
+    const colorPicker = document.getElementById('modal-rest-color');
+    const colorHex = document.getElementById('modal-rest-color-hex');
+    if (colorPicker && colorHex) {
+      colorPicker.addEventListener('input', () => {
+        colorHex.value = colorPicker.value;
+      });
+      colorHex.addEventListener('input', () => {
+        if (/^#[0-9A-F]{6}$/i.test(colorHex.value)) {
+          colorPicker.value = colorHex.value;
+        }
+      });
+    }
+  },
+
+  openModal(restaurant = null) {
+    this.editingId = restaurant ? restaurant.id : null;
+    const modal = document.getElementById('restaurant-edit-modal');
+    const title = document.getElementById('modal-title');
+    const slugInput = document.getElementById('modal-rest-slug');
+
+    if (modal) modal.classList.remove('hidden');
+    if (title) title.textContent = restaurant ? 'Editar Restaurante' : 'Nuevo Restaurante';
+    if (slugInput) slugInput.disabled = !!restaurant;
+
+    // Valores
+    document.getElementById('modal-rest-name').value = restaurant ? restaurant.name : '';
+    document.getElementById('modal-rest-slug').value = restaurant ? restaurant.id : '';
+    document.getElementById('modal-rest-tagline').value = restaurant ? (restaurant.tagline || '') : '';
+    document.getElementById('modal-rest-logo').value = restaurant ? (restaurant.logo || '') : '';
+    document.getElementById('modal-rest-color').value = restaurant ? (restaurant.primaryColor || '#b45309') : '#b45309';
+    document.getElementById('modal-rest-color-hex').value = restaurant ? (restaurant.primaryColor || '#b45309') : '#b45309';
+    document.getElementById('modal-rest-google').value = restaurant ? (restaurant.googleMapsUrl || '') : '';
+    document.getElementById('modal-rest-reward').value = restaurant ? (restaurant.rewardText || '') : '';
+    document.getElementById('modal-rest-webhook').value = restaurant ? (restaurant.sheetsWebhookUrl || '') : '';
+
+    // Gratificación Inmediata en Mesa
+    const hasImmediate = restaurant ? !!restaurant.hasImmediateReward : false;
+    const immediateCheckbox = document.getElementById('modal-rest-has-immediate');
+    const immediateWrapper = document.getElementById('modal-immediate-reward-wrapper');
+    const immediateInput = document.getElementById('modal-rest-immediate-text');
+
+    if (immediateCheckbox) immediateCheckbox.checked = hasImmediate;
+    if (immediateWrapper) {
+      if (hasImmediate) immediateWrapper.classList.remove('hidden');
+      else immediateWrapper.classList.add('hidden');
+    }
+    if (immediateInput) immediateInput.value = (restaurant && restaurant.immediateRewardText) ? restaurant.immediateRewardText : '';
+
+    // Cargar Aspectos Dinámicos
+    const container = document.getElementById('modal-aspects-list');
+    if (container) {
+      container.innerHTML = '';
+      const questions = (restaurant && restaurant.questions && restaurant.questions.length > 0)
+        ? restaurant.questions
+        : [
+            { id: 'aspect_1', label: 'Calidad y Sabor del Producto', icon: '🍰' },
+            { id: 'aspect_2', label: 'Aseo de las Instalaciones', icon: '✨' },
+            { id: 'aspect_3', label: 'Atención y Servicio del Personal', icon: '☕' }
+          ];
+
+      questions.forEach(q => this.addAspectRow(q.label, q.icon));
+    }
+  },
+
+  addAspectRow(label = '', icon = '⭐') {
+    const container = document.getElementById('modal-aspects-list');
+    if (!container) return;
+
+    const row = document.createElement('div');
+    row.className = 'aspect-row flex items-center gap-2 animate-fadeIn';
+    row.innerHTML = `
+      <span class="w-6 h-6 rounded-lg bg-amber-50 text-amber-700 font-bold border border-amber-200 flex items-center justify-center text-[11px] flex-shrink-0">
+        ${container.children.length + 1}
+      </span>
+      <input type="text" value="${label.replace(/"/g, '&quot;')}" placeholder="Ej. Tiempo de Espera, Presentación del Plato, Baños..." class="modal-aspect-input flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition">
+      <button type="button" onclick="AdminApp.removeAspectRow(this)" class="w-7 h-7 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-400 flex items-center justify-center text-xs font-bold transition flex-shrink-0" title="Eliminar este aspecto">
+        ✕
+      </button>
+    `;
+    container.appendChild(row);
+    this.renumberAspectRows();
+  },
+
+  removeAspectRow(btn) {
+    const container = document.getElementById('modal-aspects-list');
+    if (!container) return;
+    if (container.children.length <= 1) {
+      alert('Debes mantener al menos 1 aspecto a evaluar.');
+      return;
+    }
+    const row = btn.closest('.aspect-row');
+    if (row) row.remove();
+    this.renumberAspectRows();
+  },
+
+  renumberAspectRows() {
+    const container = document.getElementById('modal-aspects-list');
+    if (!container) return;
+    Array.from(container.children).forEach((row, idx) => {
+      const badge = row.querySelector('span');
+      if (badge) badge.textContent = idx + 1;
+    });
+  },
+
+  toggleImmediateRewardInput() {
+    const checkbox = document.getElementById('modal-rest-has-immediate');
+    const wrapper = document.getElementById('modal-immediate-reward-wrapper');
+    if (checkbox && wrapper) {
+      if (checkbox.checked) {
+        wrapper.classList.remove('hidden');
+        document.getElementById('modal-rest-immediate-text').focus();
+      } else {
+        wrapper.classList.add('hidden');
+      }
+    }
+  },
+
+  closeModal() {
+    const modal = document.getElementById('restaurant-edit-modal');
+    if (modal) modal.classList.add('hidden');
+    this.editingId = null;
+  },
+
+  editRestaurant(id) {
+    const r = window.StorageManager.getRestaurant(id);
+    if (r) this.openModal(r);
+  },
+
+  deleteRestaurant(id) {
+    if (confirm(`¿Estás seguro de que deseas eliminar este restaurante (${id})?`)) {
+      window.StorageManager.deleteRestaurant(id);
+      this.renderRestaurantsList();
+      this.renderStats();
+    }
+  },
+
+  saveModalData() {
+    const name = document.getElementById('modal-rest-name').value.trim();
+    let slug = document.getElementById('modal-rest-slug').value.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-');
+    const tagline = document.getElementById('modal-rest-tagline').value.trim();
+    const logo = document.getElementById('modal-rest-logo').value.trim();
+    const primaryColor = document.getElementById('modal-rest-color').value;
+    const googleMapsUrl = document.getElementById('modal-rest-google').value.trim();
+    const rewardText = document.getElementById('modal-rest-reward').value.trim();
+    const sheetsWebhookUrl = document.getElementById('modal-rest-webhook').value.trim();
+
+    const hasImmediateReward = document.getElementById('modal-rest-has-immediate').checked;
+    const immediateRewardText = document.getElementById('modal-rest-immediate-text').value.trim();
+
+    // Leer todos los aspectos dinámicos
+    const aspectInputs = document.querySelectorAll('.modal-aspect-input');
+    const questions = [];
+    aspectInputs.forEach((inp, idx) => {
+      const val = inp.value.trim();
+      if (val) {
+        questions.push({
+          id: `aspect_${idx + 1}`,
+          label: val,
+          icon: '⭐'
+        });
+      }
+    });
+
+    if (questions.length === 0) {
+      questions.push({ id: 'aspect_1', label: 'Calidad del Producto', icon: '⭐' });
+    }
+
+    if (!name) {
+      alert('Por favor ingresa el nombre comercial del restaurante.');
+      return;
+    }
+    if (!slug) {
+      slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    }
+
+    const payload = {
+      id: this.editingId || slug,
+      name,
+      tagline: tagline || 'Tu satisfacción es lo primero',
+      logo: logo || 'https://cdn-icons-png.flaticon.com/512/992/992747.png',
+      primaryColor,
+      accentColor: primaryColor,
+      googleMapsUrl: googleMapsUrl || 'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4',
+      rewardText: rewardText || '¡Regístrate para recibir beneficios exclusivos en tu cumpleaños!',
+      hasImmediateReward,
+      immediateRewardText: hasImmediateReward ? (immediateRewardText || '☕ Muestra tu reseña al mesero y recibe un café de cortesía hoy') : '',
+      sheetsWebhookUrl,
+      questions
+    };
+
+    window.StorageManager.upsertRestaurant(payload);
+    this.closeModal();
+    this.renderRestaurantsList();
+    this.renderStats();
+  },
+
+  // Modal para ver y copiar el código de Google Apps Script
+  openSheetsModal() {
+    const modal = document.getElementById('sheets-code-modal');
+    const codeEl = document.getElementById('apps-script-code-display');
+    if (modal) modal.classList.remove('hidden');
+    if (codeEl) codeEl.textContent = window.GOOGLE_APPS_SCRIPT_CODE;
+  },
+
+  closeSheetsModal() {
+    const modal = document.getElementById('sheets-code-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  copyAppsScriptCode() {
+    navigator.clipboard.writeText(window.GOOGLE_APPS_SCRIPT_CODE).then(() => {
+      const btn = document.getElementById('copy-script-btn');
+      if (btn) {
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '✅ ¡Código Copiado al Portapapeles!';
+        setTimeout(() => { btn.innerHTML = originalText; }, 2500);
+      }
+    });
+  },
+
+  // ====================================================
+  // BANDEJA DE CLIENTES Y ENCUESTAS (CRM EN VIVO)
+  // ====================================================
+  // Obtener lista filtrada por restaurante, tipo y rango de fechas
+  getFilteredSubmissions() {
+    const filterRest = document.getElementById('table-filter-restaurant');
+    const filterType = document.getElementById('table-filter-type');
+    const startDateInput = document.getElementById('table-filter-start-date');
+    const endDateInput = document.getElementById('table-filter-end-date');
+
+    const selectedRest = filterRest ? filterRest.value : 'all';
+    const selectedType = filterType ? filterType.value : 'all';
+    const startDate = startDateInput ? startDateInput.value : '';
+    const endDate = endDateInput ? endDateInput.value : '';
+
+    let list = window.StorageManager.getSubmissions();
+    const currentMonth = new Date().getMonth() + 1;
+
+    // 1. Filtro por Restaurante
+    if (selectedRest !== 'all') {
+      list = list.filter(s => (s.restaurantId || '').toLowerCase() === selectedRest.toLowerCase());
+    }
+
+    // 2. Filtro por Tipo / Calificación
+    if (selectedType === '5star') {
+      list = list.filter(s => parseInt(s.ratingOverall, 10) === 5);
+    } else if (selectedType === 'lowstar') {
+      list = list.filter(s => parseInt(s.ratingOverall, 10) <= 4);
+    } else if (selectedType === 'contact') {
+      list = list.filter(s => s.requestedContact);
+    } else if (selectedType === 'birthday') {
+      list = list.filter(s => {
+        if (!s.customerBirthday) return false;
+        const parts = s.customerBirthday.split('/');
+        return parts.length >= 2 && parseInt(parts[1], 10) === currentMonth;
+      });
+    }
+
+    // 3. Filtro Fecha a Fecha (Desde ... Hasta ...)
+    if (startDate) {
+      const startTimestamp = new Date(startDate + 'T00:00:00').getTime();
+      list = list.filter(s => {
+        if (!s.createdAt) return false;
+        return new Date(s.createdAt).getTime() >= startTimestamp;
+      });
+    }
+
+    if (endDate) {
+      const endTimestamp = new Date(endDate + 'T23:59:59.999').getTime();
+      list = list.filter(s => {
+        if (!s.createdAt) return false;
+        return new Date(s.createdAt).getTime() <= endTimestamp;
+      });
+    }
+
+    return list;
+  },
+
+  resetDateFilters() {
+    const s = document.getElementById('table-filter-start-date');
+    const e = document.getElementById('table-filter-end-date');
+    if (s) s.value = '';
+    if (e) e.value = '';
+    this.renderSubmissionsTable();
+  },
+
+  renderSubmissionsTable() {
+    const tableBody = document.getElementById('submissions-table-body');
+    const filterRest = document.getElementById('table-filter-restaurant');
+    const countBadge = document.getElementById('submissions-count-badge');
+
+    if (!tableBody) return;
+
+    // Actualizar opciones del selector de restaurantes si existe
+    if (filterRest && filterRest.options.length <= 1) {
+      const restList = window.StorageManager.getRestaurants();
+      restList.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id;
+        opt.textContent = r.name;
+        filterRest.appendChild(opt);
+      });
+    }
+
+    const list = this.getFilteredSubmissions();
+    const currentMonth = new Date().getMonth() + 1;
+
+    if (countBadge) countBadge.textContent = `${list.length} registros`;
+
+    if (list.length === 0) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="8" class="p-8 text-center text-slate-400 bg-slate-50/50">
+            <span class="text-3xl block mb-2">📭</span>
+            <p class="font-medium text-slate-600">No hay encuestas registradas bajo este filtro.</p>
+            <p class="text-xs text-slate-400 mt-1">Escanea el QR o haz una prueba en la vista cliente para ver las respuestas aquí en tiempo real.</p>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tableBody.innerHTML = list.map(sub => {
+      const date = sub.createdAt ? new Date(sub.createdAt).toLocaleString('es-CO', {
+        dateStyle: 'short',
+        timeStyle: 'short'
+      }) : 'Reciente';
+
+      const isFiveStars = parseInt(sub.ratingOverall, 10) === 5;
+      const cleanPhone = (sub.customerPhone || '').replace(/\D/g, '');
+      const waLink = cleanPhone ? `https://wa.me/57${cleanPhone}?text=Hola%20${encodeURIComponent(sub.customerName || '')},%20te%20saludamos%20de%20${encodeURIComponent(sub.restaurantName || 'nuestro restaurante')}:` : '#';
+
+      // Verificar si cumple años este mes
+      let isBirthdayMonth = false;
+      if (sub.customerBirthday) {
+        const parts = sub.customerBirthday.split('/');
+        if (parts.length >= 2 && parseInt(parts[1], 10) === currentMonth) {
+          isBirthdayMonth = true;
+        }
+      }
+
+      // Estrellas
+      let starsHtml = '';
+      for (let i = 1; i <= 5; i++) {
+        starsHtml += `<span class="${i <= sub.ratingOverall ? 'text-amber-400' : 'text-slate-200'}">★</span>`;
+      }
+
+      return `
+        <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition text-xs text-slate-700">
+          <td class="p-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+            ${date}
+          </td>
+          <td class="p-3 font-semibold text-slate-800">
+            <span class="inline-block max-w-[130px] truncate" title="${sub.restaurantName || sub.restaurantId}">
+              ${sub.restaurantName || sub.restaurantId}
+            </span>
+          </td>
+          <td class="p-3 font-bold text-slate-900">
+            ${sub.customerName || 'Anónimo'}
+          </td>
+          <td class="p-3 whitespace-nowrap">
+            <div class="flex items-center gap-1.5">
+              <span class="font-mono text-slate-600">${sub.customerPhone || '-'}</span>
+              ${cleanPhone ? `
+                <a href="${waLink}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-medium text-[11px] transition" title="Enviar WhatsApp">
+                  💬 Chat
+                </a>
+              ` : ''}
+            </div>
+          </td>
+          <td class="p-3 whitespace-nowrap">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg ${isBirthdayMonth ? 'bg-amber-100 text-amber-800 font-bold border border-amber-300' : 'bg-slate-100 text-slate-600'}">
+              ${isBirthdayMonth ? '🎂 ' : ''}${sub.customerBirthday || 'N/A'}
+            </span>
+          </td>
+          <td class="p-3 whitespace-nowrap">
+            <div class="text-sm tracking-tighter text-center">${starsHtml}</div>
+            ${sub.aspects && sub.aspects.length > 0 ? `
+              <div class="mt-1 text-[10px] text-slate-600 space-y-1 text-left bg-slate-50 p-1.5 rounded-lg border border-slate-200/70 max-w-[220px]">
+                ${sub.aspects.map(a => `
+                  <div class="leading-tight">
+                    <span class="font-semibold text-slate-700">${a.label}:</span>
+                    <span class="text-amber-600 font-bold">${a.rating}★</span>
+                    ${a.note ? `<span class="block text-amber-800 bg-amber-100/80 px-1 py-0.5 rounded text-[10px] mt-0.5 italic">💬 "${a.note}"</span>` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            ` : `
+              <span class="text-[10px] text-slate-400 block text-center">Cal: ${sub.ratingQuality || '-'} | Ase: ${sub.ratingCleanliness || '-'} | Ser: ${sub.ratingService || '-'}</span>
+            `}
+          </td>
+          <td class="p-3 max-w-[200px]">
+            <p class="truncate italic text-slate-600" title="${sub.comment || 'Sin comentario'}">
+              "${sub.comment || 'Sin comentario'}"
+            </p>
+          </td>
+          <td class="p-3 text-right whitespace-nowrap">
+            ${isFiveStars ? `
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                ✅ 5★ a Google
+              </span>
+            ` : `
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                🛡️ Blindada (${sub.ratingOverall}★)
+              </span>
+            `}
+            ${(sub.requestedContact === true || sub.requestedContact === 'true' || sub.requestedContact === 'SI' || sub.requestedContact === 'SÍ') ? `
+              <span class="block text-[10px] text-rose-600 font-bold mt-1 animate-pulse">
+                🚨 Solicita Contacto
+              </span>
+            ` : ''}
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  // Exportar a Excel Formateado Profesional (.xls)
+  exportToExcel() {
+    const list = this.getFilteredSubmissions();
+    if (list.length === 0) {
+      alert('No hay respuestas registradas bajo los filtros seleccionados para exportar.');
+      return;
+    }
+
+    const rowsHtml = list.map((s, idx) => {
+      const dateStr = s.createdAt ? new Date(s.createdAt).toLocaleString('es-CO', {
+        dateStyle: 'short',
+        timeStyle: 'short'
+      }) : 'Reciente';
+
+      const overall = parseInt(s.ratingOverall, 10);
+      let ratingBg = '#f8fafc';
+      let ratingColor = '#334155';
+      if (overall === 5) {
+        ratingBg = '#dcfce7'; // Verde suave
+        ratingColor = '#166534';
+      } else if (overall <= 3) {
+        ratingBg = '#fee2e2'; // Rojo suave de alerta
+        ratingColor = '#991b1b';
+      }
+
+      // Detalle de aspectos y notas sin comillas duplicadas
+      let aspectsText = '';
+      if (s.aspects && Array.isArray(s.aspects) && s.aspects.length > 0) {
+        aspectsText = s.aspects.map(a => {
+          const cleanNote = (a.note || '').replace(/^["']+|["']+$/g, '').trim();
+          return `• <b>${a.label}:</b> ${a.rating}★ ${cleanNote ? `<i style="color:#b45309;">("${cleanNote}")</i>` : ''}`;
+        }).join('<br>');
+      } else {
+        aspectsText = s.aspectsSummary || `Cal: ${s.ratingQuality || '-'} | Ase: ${s.ratingCleanliness || '-'} | Ser: ${s.ratingService || '-'}`;
+      }
+
+      const isWentToGoogle = (s.wentToGoogle === true || s.wentToGoogle === 'true' || s.wentToGoogle === 'SÍ (5★)' || overall === 5);
+      const wentGoogleText = isWentToGoogle ? 'SÍ (5★ a Google Maps)' : 'NO (Blindada Interna)';
+      const wentGoogleBg = isWentToGoogle ? '#ecfdf5' : '#fffbeb';
+      const wentGoogleColor = isWentToGoogle ? '#047857' : '#b45309';
+
+      const isRequestedContact = (s.requestedContact === true || s.requestedContact === 'true' || s.requestedContact === 'SI' || s.requestedContact === 'SÍ' || s.requestedContact === 'SÍ (Urgente)');
+      const requestedContactText = isRequestedContact ? 'SÍ (Solicitó Contacto)' : 'No';
+      const requestedContactBg = isRequestedContact ? '#ffe4e6' : '#ffffff';
+      const requestedContactColor = isRequestedContact ? '#e11d48' : '#64748b';
+
+      const cleanComment = (s.comment || '').replace(/^["']+|["']+$/g, '').trim() || 'Sin comentario';
+
+      return `
+        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 8px; font-weight: bold;">${idx + 1}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 8px; font-family: monospace;">${dateStr}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #1e293b;">${s.restaurantName || s.restaurantId || 'N/A'}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: 500;">${s.customerName || 'Anónimo'}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 8px; mso-number-format:'\\@';">${s.customerPhone || 'N/A'}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 8px;">${s.customerBirthday || 'N/A'}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 8px; background-color: ${ratingBg}; color: ${ratingColor}; font-weight: bold; font-size: 13px;">
+            ${overall} ★
+          </td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px; font-size: 11px;">${aspectsText}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px; font-style: italic; color: #475569;">"${cleanComment}"</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 8px; background-color: ${wentGoogleBg}; color: ${wentGoogleColor}; font-weight: bold; font-size: 11px;">
+            ${wentGoogleText}
+          </td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 8px; background-color: ${requestedContactBg}; color: ${requestedContactColor}; font-weight: bold; font-size: 11px;">
+            ${requestedContactText}
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    const template = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Informe de Encuestas</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          body { font-family: Calibri, 'Segoe UI', Arial, sans-serif; }
+          table { border-collapse: collapse; width: 100%; }
+          th {
+            background-color: #1e293b;
+            color: #ffffff;
+            font-weight: bold;
+            text-align: center;
+            border: 1px solid #0f172a;
+            padding: 10px 8px;
+            font-size: 11px;
+            text-transform: uppercase;
+          }
+          td {
+            font-size: 11px;
+            vertical-align: middle;
+          }
+        </style>
+      </head>
+      <body>
+        <div style="margin-bottom: 12px;">
+          <h2 style="color: #1e293b; margin: 0; padding: 0; font-family: Calibri, sans-serif;">REPORTE DE SATISFACCIÓN Y AUDITORÍA DE CLIENTES</h2>
+          <p style="color: #64748b; font-size: 11px; margin: 4px 0 10px 0; font-family: Calibri, sans-serif;">
+            Generado el: ${new Date().toLocaleString('es-CO')} | Total de registros: ${list.length}
+          </p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 45px;">N°</th>
+              <th style="width: 130px;">Fecha y Hora</th>
+              <th style="width: 170px;">Restaurante</th>
+              <th style="width: 150px;">Cliente</th>
+              <th style="width: 120px;">WhatsApp</th>
+              <th style="width: 90px;">Cumpleaños</th>
+              <th style="width: 100px;">Calificación</th>
+              <th style="width: 320px;">Aspectos y Observaciones</th>
+              <th style="width: 250px;">Comentario General</th>
+              <th style="width: 150px;">Destino</th>
+              <th style="width: 140px;">Contacto Gerencial</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([template], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const dateFormatted = new Date().toISOString().slice(0, 10);
+    link.download = `Reporte_Encuestas_Clientes_${dateFormatted}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  },
+
+  // Alias para mantener compatibilidad
+  exportToCSV() {
+    this.exportToExcel();
+  },
+
+  // Limpiar respuestas registradas de prueba
+  clearTestSubmissions() {
+    if (confirm('¿Estás seguro de que deseas borrar todas las respuestas registradas de prueba? (Esta acción no se puede deshacer)')) {
+      window.StorageManager.clearSubmissions();
+      this.renderStats();
+      this.renderRestaurantsList();
+      this.renderSubmissionsTable();
+      alert('Respuestas de prueba eliminadas con éxito.');
+    }
+  }
+};
+
+window.AdminApp = AdminApp;
+
+
+  </script>
 
   <script>
     // Enrutador visual simple (Cliente vs Admin)
@@ -830,6 +3161,13 @@
     // Inicialización al cargar la página
     window.addEventListener('DOMContentLoaded', () => {
       const params = new URLSearchParams(window.location.search);
+      
+      // Si el cliente escanea el QR con ?r=..., ocultamos la barra superior para experiencia 100% limpia
+      if (params.get('r') && params.get('admin') !== 'true') {
+        const header = document.querySelector('header');
+        if (header) header.classList.add('hidden');
+      }
+
       if (params.get('admin') === 'true' || window.location.hash === '#/admin') {
         switchView('admin');
       } else {
