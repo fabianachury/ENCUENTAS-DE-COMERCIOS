@@ -25,6 +25,16 @@
   <!-- Canvas Confetti -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 
+  <!-- Control de Modo Limpio Inmediato (Previene parpadeo en escaneo de clientes) -->
+  <script>
+    if (window.location.search.includes('r=') && !window.location.search.includes('admin=true')) {
+      document.documentElement.classList.add('is-survey-mode');
+    }
+  </script>
+  <style>
+    .is-survey-mode header { display: none !important; }
+  </style>
+
   <!-- Custom Styles -->
   <style>
 /* Estilos y animaciones del Sistema QR de Encuestas */
@@ -183,21 +193,21 @@
     <div class="w-full bg-white rounded-3xl shadow-xl border border-slate-200/70 overflow-hidden my-auto transition-all">
 
       <!-- Encabezado con Identidad del Restaurante -->
-      <div class="p-6 text-center border-b border-slate-100 bg-gradient-to-b from-amber-50/50 to-white">
+      <div id="survey-brand-header" class="p-6 text-center border-b border-slate-100 bg-gradient-to-b from-amber-50/50 to-white">
         <div class="w-20 h-20 mx-auto rounded-2xl bg-white border-2 border-amber-100 shadow-md p-2 flex items-center justify-center mb-3">
-          <img id="restaurant-logo" src="https://cdn-icons-png.flaticon.com/512/992/992747.png" alt="Logo" class="max-w-full max-h-full object-contain">
+          <img id="restaurant-logo" src="https://cdn-icons-png.flaticon.com/512/992/992747.png" alt="Logo" class="max-w-full max-h-full object-contain transition-opacity duration-300 opacity-0">
         </div>
-        <h1 id="restaurant-name" class="text-2xl font-black text-slate-900 tracking-tight mb-1">
-          Pastelería & Café Milhojas
+        <h1 id="restaurant-name" class="text-2xl font-black text-slate-900 tracking-tight mb-1 min-h-[32px] flex items-center justify-center">
+          <span class="inline-block w-44 h-7 bg-slate-200/80 rounded-lg animate-pulse"></span>
         </h1>
-        <p id="restaurant-tagline" class="text-xs text-slate-500 font-medium">
-          Tradición artesanal y momentos dulces
+        <p id="restaurant-tagline" class="text-xs text-slate-500 font-medium min-h-[16px] flex items-center justify-center">
+          <span class="inline-block w-56 h-3.5 bg-slate-100 rounded animate-pulse"></span>
         </p>
 
         <!-- Banner Gancho de Beneficio VIP -->
         <div class="mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-900 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2">
-          <span>🎂</span>
-          <span id="reward-text-display">¡Únete a nuestro Club VIP y recibe sorpresas especiales en tu cumpleaños!</span>
+          <span>🎁</span>
+          <span id="reward-text-display">Cargando beneficios exclusivos...</span>
         </div>
       </div>
 
@@ -2381,7 +2391,10 @@ const SurveyApp = {
     const taglineEl = document.getElementById('restaurant-tagline');
     const rewardEl = document.getElementById('reward-text-display');
 
-    if (logoEl) logoEl.src = this.restaurant.logo || 'https://cdn-icons-png.flaticon.com/512/992/992747.png';
+    if (logoEl) {
+      logoEl.src = this.restaurant.logo || 'https://cdn-icons-png.flaticon.com/512/992/992747.png';
+      logoEl.classList.remove('opacity-0');
+    }
     if (nameEl) nameEl.textContent = this.restaurant.name;
     if (taglineEl) taglineEl.textContent = this.restaurant.tagline || 'Tu satisfacción es lo primero';
     if (rewardEl) rewardEl.textContent = this.restaurant.rewardText || '¡Regístrate para recibir beneficios exclusivos!';
