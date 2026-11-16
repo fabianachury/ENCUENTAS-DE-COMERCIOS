@@ -603,6 +603,9 @@
         </div>
 
         <!-- Botones de Acción -->
+        <button id="btn-sync-cloud-submissions" onclick="AdminApp.syncWithCloud()" class="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5" title="Actualizar y descargar encuestas desde Google Sheets">
+          <span id="sync-subs-spinner" class="inline-block text-sm">🔄</span> <span>Actualizar / Traer de Google Sheets</span>
+        </button>
         <button onclick="AdminApp.exportToCSV()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5" title="Exportar a Excel">
           <span>📥</span> <span>Exportar Excel</span>
         </button>
@@ -1601,7 +1604,8 @@ const GOOGLE_APPS_SCRIPT_CODE = `/**
  *
  * INSTRUCCIONES:
  * 1. Pega este código completo en: Extensiones > Apps Script.
- * 2. Clic en "Implementar" (arriba a la derecha) > "Nueva implementación".
+ * 2. Clic en "Implementar" (arriba a la derecha) > "Administrar implementaciones"
+ *    o "Nueva implementación".
  * 3. Selecciona tipo: "Aplicación web".
  * 4. Configuración:
  *    - Ejecutar como: "Yo" (tu cuenta de Google)
@@ -1653,7 +1657,80 @@ function doGet(e) {
     return respondJSON({ status: "success", restaurants: list });
   }
 
-  // 2. Ping de verificación del servidor
+  // 2. Obtener lista completa de encuestas recibidas de clientes
+  if (action === "getSubmissions") {
+    var encSheet = ss.getSheetByName("Encuestas");
+    if (!encSheet || encSheet.getLastRow() <= 1) {
+      return respondJSON({ status: "success", submissions: [] });
+    }
+
+    var numRows = encSheet.getLastRow() - 1;
+    var numCols = encSheet.getLastColumn();
+    var values = encSheet.getRange(2, 1, numRows, numCols).getValues();
+    var subs = [];
+
+    var headerCol1 = String(encSheet.getRange(1, 1).getValue() || "").trim();
+    var isNewFormatHeader = headerCol1 === "ID Encuesta";
+
+    for (var i = 0; i < values.length; i++) {
+      var r = values[i];
+      if (!r || (!r[0] && !r[1] && !r[2])) continue;
+
+      var subObj = null;
+
+      // Intentar leer JSON completo si está en la última columna
+      for (var col = numCols - 1; col >= 0; col--) {
+        var cellVal = String(r[col] || "").trim();
+        if (cellVal.indexOf("{") === 0 && cellVal.lastIndexOf("}") === cellVal.length - 1) {
+          try {
+            subObj = JSON.parse(cellVal);
+            break;
+          } catch (err) {}
+        }
+      }
+
+      if (!subObj) {
+        if (isNewFormatHeader || String(r[0] || "").indexOf("sub_") === 0) {
+          subObj = {
+            id: String(r[0] || ("sub_" + i)),
+            createdAt: r[1] instanceof Date ? Utilities.formatDate(r[1], Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss") : String(r[1] || ""),
+            restaurantId: String(r[2] || ""),
+            restaurantName: String(r[3] || ""),
+            customerName: String(r[4] || "Anónimo"),
+            customerPhone: String(r[5] || ""),
+            customerBirthday: String(r[6] || ""),
+            ratingOverall: parseInt(r[7], 10) || 5,
+            aspectsSummary: String(r[8] || ""),
+            comment: String(r[9] || ""),
+            wentToGoogle: String(r[10]).toUpperCase().indexOf("SÍ") >= 0 || String(r[10]).toUpperCase().indexOf("SI") >= 0,
+            requestedContact: String(r[11]).toUpperCase().indexOf("SÍ") >= 0 || String(r[11]).toUpperCase().indexOf("SI") >= 0
+          };
+        } else {
+          var restName = String(r[1] || "");
+          subObj = {
+            id: "sub_legacy_" + (i + 2),
+            createdAt: r[0] instanceof Date ? Utilities.formatDate(r[0], Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss") : String(r[0] || ""),
+            restaurantId: restName.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+            restaurantName: restName,
+            customerName: String(r[2] || "Anónimo"),
+            customerPhone: String(r[3] || ""),
+            customerBirthday: String(r[4] || ""),
+            ratingOverall: parseInt(r[5], 10) || 5,
+            aspectsSummary: String(r[6] || ""),
+            comment: String(r[7] || ""),
+            wentToGoogle: String(r[8]).toUpperCase().indexOf("SÍ") >= 0 || String(r[8]).toUpperCase().indexOf("SI") >= 0,
+            requestedContact: String(r[9]).toUpperCase().indexOf("SÍ") >= 0 || String(r[9]).toUpperCase().indexOf("SI") >= 0
+          };
+        }
+      }
+
+      subs.push(subObj);
+    }
+
+    return respondJSON({ status: "success", submissions: subs });
+  }
+
+  // 3. Ping de verificación del servidor
   return respondJSON({
     status: "ok",
     message: "Servidor Central de Encuestas y Restaurantes activo en Google Sheets"
@@ -1784,26 +1861,31 @@ function doPost(e) {
     }
 
     // ========================================================
-    // CASO C: REGISTRAR ENCUESTA RECIBIDA (CRM)
+    // CASO C: REGISTRAR O ACTUALIZAR ENCUESTA RECIBIDA (CRM)
     // ========================================================
     var encSheet = ss.getSheetByName("Encuestas");
     if (!encSheet) {
       encSheet = ss.insertSheet("Encuestas");
     }
 
-    if (encSheet.getLastRow() === 0) {
-      var encHeaders = [
-        "Fecha y Hora",
-        "Restaurante",
-        "Nombre del Cliente",
-        "WhatsApp / Celular",
-        "Cumpleaños (DD/MM)",
-        "Calificación General",
-        "Detalle Aspectos y Observaciones",
-        "Comentario General",
-        "¿Fue a Google Maps?",
-        "¿Solicita Contacto Gerencial?"
-      ];
+    var encHeaders = [
+      "ID Encuesta",
+      "Fecha y Hora",
+      "ID Restaurante",
+      "Nombre Restaurante",
+      "Nombre del Cliente",
+      "WhatsApp / Celular",
+      "Cumpleaños (DD/MM)",
+      "Calificación General",
+      "Detalle Aspectos",
+      "Comentario General",
+      "¿Fue a Google Maps?",
+      "¿Solicita Contacto Gerencial?",
+      "Datos JSON (Backup)"
+    ];
+
+    // Si la hoja está vacía o solo tenía encabezado anterior sin filas, inicializar con los 13 encabezados
+    if (encSheet.getLastRow() <= 1) {
       var encHRange = encSheet.getRange(1, 1, 1, encHeaders.length);
       encHRange.setValues([encHeaders]);
       encHRange.setBackground("#0f172a");
@@ -1815,33 +1897,59 @@ function doPost(e) {
     var timestamp = new Date();
     var formattedDate = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
 
+    var subId = String(data.id || ("sub_" + timestamp.getTime()));
+    var overallRating = parseInt(data.ratingOverall, 10) || 5;
+
+    data.id = subId;
+    if (!data.createdAt) data.createdAt = formattedDate;
+
     var row = [
+      subId,
       formattedDate,
-      data.restaurantName || data.restaurantId || "Sin Nombre",
-      data.customerName || "Anónimo",
-      data.customerPhone || "N/A",
-      data.customerBirthday || "N/A",
-      data.ratingOverall || "-",
-      data.aspectsSummary || "-",
-      data.comment || "Sin comentario",
+      String(data.restaurantId || ""),
+      String(data.restaurantName || "Sin Nombre"),
+      String(data.customerName || "Anónimo"),
+      String(data.customerPhone || "N/A"),
+      String(data.customerBirthday || "N/A"),
+      overallRating,
+      String(data.aspectsSummary || "-"),
+      String(data.comment || "Sin comentario"),
       data.wentToGoogle ? "SÍ (5★)" : "NO (Interno)",
-      data.requestedContact ? "SÍ (Urgente)" : "No"
+      data.requestedContact ? "SÍ (Urgente)" : "No",
+      JSON.stringify(data)
     ];
 
-    encSheet.appendRow(row);
-    var newLastRow = encSheet.getLastRow();
-    var overallRating = parseInt(data.ratingOverall, 10);
+    // Buscar si ya existe la encuesta por ID para actualizarla
+    var targetRow = -1;
+    var lastEncRow = encSheet.getLastRow();
+    if (lastEncRow > 1) {
+      var existingIds = encSheet.getRange(2, 1, lastEncRow - 1, 1).getValues();
+      for (var eIdx = 0; eIdx < existingIds.length; eIdx++) {
+        if (String(existingIds[eIdx][0]) === subId) {
+          targetRow = eIdx + 2;
+          break;
+        }
+      }
+    }
 
-    // Formato condicional rápido de color
+    if (targetRow > 0) {
+      encSheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
+    } else {
+      encSheet.appendRow(row);
+      targetRow = encSheet.getLastRow();
+    }
+
+    // Color condicional rápido de la calificación (columna 8)
     if (overallRating === 5) {
-      encSheet.getRange(newLastRow, 6).setBackground("#dcfce7").setFontColor("#15803d"); // Verde
+      encSheet.getRange(targetRow, 8).setBackground("#dcfce7").setFontColor("#15803d"); // Verde
     } else if (overallRating <= 3) {
-      encSheet.getRange(newLastRow, 6).setBackground("#fee2e2").setFontColor("#b91c1c"); // Rojo
+      encSheet.getRange(targetRow, 8).setBackground("#fee2e2").setFontColor("#b91c1c"); // Rojo
     }
 
     return respondJSON({
       status: "success",
-      message: "Encuesta guardada con éxito en Google Sheets"
+      message: "Encuesta guardada con éxito en Google Sheets",
+      id: subId
     });
 
   } catch (error) {
@@ -2239,7 +2347,7 @@ const StorageManager = {
       const list = this.getSubmissions();
       const index = id ? list.findIndex(s => s.id === id) : 0;
       if (index >= 0 && list[index]) {
-        list[index] = { ...list[index], ...patch };
+        list[index] = { ...list[index], ...patch, updatedAt: new Date().toISOString(), action: 'saveSubmission' };
         localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(list));
 
         // Si hay webhook de Google Sheets, enviar actualización
@@ -2249,7 +2357,7 @@ const StorageManager = {
             await fetch(webhook.trim(), {
               method: 'POST',
               mode: 'no-cors',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
               body: JSON.stringify(list[index])
             });
           } catch (e) { }
@@ -2274,21 +2382,20 @@ const StorageManager = {
 
   // Guardar respuesta y enviarla a Google Sheets
   async saveSubmission(payload) {
+    if (!payload.id) {
+      payload.id = 'sub_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+      payload.createdAt = new Date().toISOString();
+    }
+    payload.action = 'saveSubmission';
+
     // 1. Guardar en memoria local primero (garantiza cero pérdida de datos)
     try {
       const list = this.getSubmissions();
-      if (!payload.id) {
-        payload.id = 'sub_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-        payload.createdAt = new Date().toISOString();
-        list.unshift(payload);
+      const existingIdx = list.findIndex(s => s.id === payload.id);
+      if (existingIdx >= 0) {
+        list[existingIdx] = { ...list[existingIdx], ...payload };
       } else {
-        payload.updatedAt = new Date().toISOString();
-        const existingIdx = list.findIndex(s => s.id === payload.id);
-        if (existingIdx >= 0) {
-          list[existingIdx] = { ...list[existingIdx], ...payload };
-        } else {
-          list.unshift(payload);
-        }
+        list.unshift(payload);
       }
       localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(list));
     } catch (e) {
@@ -2303,7 +2410,7 @@ const StorageManager = {
           method: 'POST',
           mode: 'no-cors',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'text/plain;charset=utf-8'
           },
           body: JSON.stringify(payload)
         });
@@ -2314,6 +2421,61 @@ const StorageManager = {
     }
 
     return payload;
+  },
+
+  // Traer encuestas recibidas desde la nube (Google Sheets) a este dispositivo
+  async syncSubmissionsFromCloud() {
+    const webhook = this.getCentralWebhookUrl();
+    if (!webhook || !webhook.startsWith('http')) {
+      return { success: false, message: 'No hay URL Central de Google Sheets configurada.' };
+    }
+
+    try {
+      const url = webhook + (webhook.includes('?') ? '&' : '?') + 'action=getSubmissions&t=' + Date.now();
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Error en servidor (${response.status})`);
+      }
+      const data = await response.json();
+
+      if (data && data.status === 'success' && Array.isArray(data.submissions)) {
+        const localList = this.getSubmissions();
+        const map = new Map();
+
+        // 1. Cargar las encuestas remotas
+        data.submissions.forEach(sub => {
+          if (sub && sub.id) {
+            map.set(sub.id, sub);
+          }
+        });
+
+        // 2. Fusionar con las locales sin perder nada
+        localList.forEach(localSub => {
+          if (localSub && localSub.id) {
+            if (!map.has(localSub.id)) {
+              map.set(localSub.id, localSub);
+            } else {
+              map.set(localSub.id, { ...map.get(localSub.id), ...localSub });
+            }
+          }
+        });
+
+        // 3. Ordenar cronológicamente (más recientes primero)
+        const merged = Array.from(map.values()).sort((a, b) => {
+          const tA = new Date(a.createdAt || 0).getTime() || 0;
+          const tB = new Date(b.createdAt || 0).getTime() || 0;
+          return tB - tA;
+        });
+
+        localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(merged));
+        return { success: true, count: merged.length, cloudCount: data.submissions.length };
+      }
+
+      return { success: false, message: 'Respuesta inválida del servidor central.' };
+    } catch (err) {
+      console.warn('⚠️ No se pudieron sincronizar las encuestas desde la nube:', err);
+      return { success: false, message: err.message };
+    }
   },
 
   // Estadísticas globales para el panel de administración
@@ -3063,10 +3225,14 @@ const AdminApp = {
 
     if (window.StorageManager.getCentralWebhookUrl()) {
       try {
-        const res = await window.StorageManager.syncRestaurantsFromCloud();
-        if (res && res.success && res.count > 0) {
+        const resRest = await window.StorageManager.syncRestaurantsFromCloud();
+        if (resRest && resRest.success && resRest.count > 0) {
           this.renderRestaurantsList();
+        }
+        const resSubs = await window.StorageManager.syncSubmissionsFromCloud();
+        if (resSubs && resSubs.success) {
           this.renderStats();
+          this.renderSubmissionsTable();
         }
       } catch (e) {
         console.warn('Auto-sync cloud:', e);
@@ -3771,6 +3937,37 @@ const AdminApp = {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  },
+
+  // Sincronizar manualmente con Google Sheets
+  async syncWithCloud() {
+    const btn = document.getElementById('btn-sync-cloud-submissions');
+    const spinner = document.getElementById('sync-subs-spinner');
+    if (spinner) spinner.classList.add('animate-spin');
+    if (btn) btn.disabled = true;
+
+    try {
+      // 1. Sincronizar restaurantes
+      await window.StorageManager.syncRestaurantsFromCloud();
+      this.renderRestaurantsList();
+
+      // 2. Sincronizar encuestas de clientes
+      const res = await window.StorageManager.syncSubmissionsFromCloud();
+      this.renderStats();
+      this.renderSubmissionsTable();
+
+      if (res && res.success) {
+        alert(`¡Sincronización exitosa! Se han cargado ${res.count} registros desde Google Sheets.`);
+      } else {
+        alert(res.message || 'No se pudieron descargar nuevas encuestas.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error al conectar con Google Sheets: ' + e.message);
+    } finally {
+      if (spinner) spinner.classList.remove('animate-spin');
+      if (btn) btn.disabled = false;
+    }
   },
 
   // Alias para mantener compatibilidad
