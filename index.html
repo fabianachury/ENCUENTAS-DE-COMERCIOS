@@ -300,10 +300,17 @@
       <!-- PASO 2: ENCUESTA DE SATISFACCIÓN         -->
       <!-- ======================================== -->
       <div id="step-2" class="p-6 hidden">
-        <div class="mb-5 text-center">
-          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 mb-2">
-            Paso 2 de 2: Tu Experiencia
+        <!-- Barra de Navegación del Paso 2 -->
+        <div class="mb-4 flex items-center justify-between">
+          <button type="button" onclick="window.SurveyApp.goToStep(1)" class="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 py-1.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 transition">
+            <span>←</span> <span>Modificar mis datos</span>
+          </button>
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+            Paso 2 de 2
           </span>
+        </div>
+
+        <div class="mb-5 text-center">
           <h2 class="text-lg font-bold text-slate-800">¿Cómo estuvo tu visita hoy?</h2>
           <p class="text-xs text-slate-500">Tu opinión nos ayuda a brindarte siempre lo mejor.</p>
         </div>
@@ -344,6 +351,11 @@
           <button type="submit" id="submit-survey-btn" class="w-full py-4 px-6 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm shadow-lg shadow-amber-600/30 transition transform active:scale-98 flex items-center justify-center gap-2">
             <span>Finalizar y Enviar Opinión</span>
             <span>✨</span>
+          </button>
+
+          <!-- Enlace de regreso secundario -->
+          <button type="button" onclick="window.SurveyApp.goToStep(1)" class="w-full text-center text-xs text-slate-400 hover:text-slate-600 font-medium py-2 transition">
+            ← Volver al Paso 1 y cambiar mis datos
           </button>
         </form>
       </div>
@@ -2350,7 +2362,8 @@ const SurveyApp = {
     this.renderHeader();
     this.renderDynamicAspects();
     this.setupEventListeners();
-    this.showStep(1);
+    this.setupHistoryNavigation();
+    this.showStep(1, false);
   },
 
   // Identificar el restaurante activo
@@ -2363,7 +2376,19 @@ const SurveyApp = {
       if (match) slug = match[1];
     }
 
+    // Si no viene en la URL, consultar si estaba en sessionStorage (evita que el botón Atrás cambie de restaurante)
+    if (!slug) {
+      try {
+        slug = sessionStorage.getItem('last_active_survey_restaurant');
+      } catch (e) {}
+    }
+
     slug = slug || 'ciudad-montes';
+
+    // Respaldar en sessionStorage para proteger toda la sesión de navegación del cliente
+    try {
+      if (slug) sessionStorage.setItem('last_active_survey_restaurant', slug);
+    } catch (e) {}
 
     let rest = window.StorageManager.getRestaurant(slug);
 
@@ -2377,6 +2402,27 @@ const SurveyApp = {
 
     this.restaurant = rest || window.StorageManager.getRestaurants()[0];
     this.applyBrand();
+  },
+
+  // Control de historial para el botón físico o gesto de Atrás del celular
+  setupHistoryNavigation() {
+    if (!history.state || typeof history.state.step !== 'number') {
+      try {
+        history.replaceState({ step: 1 }, '', window.location.href);
+      } catch (e) {}
+    }
+
+    window.addEventListener('popstate', (e) => {
+      const targetStep = (e.state && typeof e.state.step === 'number') ? e.state.step : 1;
+      this.showStep(targetStep, false);
+    });
+  },
+
+  goToStep(stepNumber) {
+    try {
+      history.pushState({ step: stepNumber }, '', window.location.href);
+    } catch (e) {}
+    this.showStep(stepNumber, false);
   },
 
   applyBrand() {
@@ -2433,7 +2479,7 @@ const SurveyApp = {
         this.formData.customerPhone = phone;
         this.formData.customerBirthday = `${birthDay.padStart(2, '0')}/${birthMonth.padStart(2, '0')}`;
 
-        this.showStep(2);
+        this.goToStep(2);
       });
     }
 
@@ -2576,8 +2622,20 @@ const SurveyApp = {
     if (label) label.textContent = labels[value] || '';
   },
 
-  showStep(stepNumber) {
+  showStep(stepNumber, pushHistory = true) {
+    if (pushHistory) {
+      try {
+        history.pushState({ step: stepNumber }, '', window.location.href);
+      } catch (e) {}
+    }
+
     this.currentStep = stepNumber;
+
+    // Si volvemos al Paso 1, restaurar los datos del formulario ya diligenciados
+    if (stepNumber === 1) {
+      this.restoreStep1FormData();
+    }
+
     ['step-1', 'step-2', 'step-3'].forEach((id, idx) => {
       const el = document.getElementById(id);
       if (el) {
@@ -2592,6 +2650,25 @@ const SurveyApp = {
 
     // Desplazar suavemente arriba
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  },
+
+  restoreStep1FormData() {
+    const nameInput = document.getElementById('vip-name');
+    const phoneInput = document.getElementById('vip-phone');
+    const daySelect = document.getElementById('birth-day');
+    const monthSelect = document.getElementById('birth-month');
+
+    if (nameInput && this.formData.customerName) {
+      nameInput.value = this.formData.customerName;
+    }
+    if (phoneInput && this.formData.customerPhone) {
+      phoneInput.value = this.formData.customerPhone;
+    }
+    if (this.formData.customerBirthday && this.formData.customerBirthday.includes('/')) {
+      const parts = this.formData.customerBirthday.split('/');
+      if (daySelect && parts[0]) daySelect.value = String(parseInt(parts[0], 10));
+      if (monthSelect && parts[1]) monthSelect.value = String(parseInt(parts[1], 10));
+    }
   },
 
   async submitSurvey() {
