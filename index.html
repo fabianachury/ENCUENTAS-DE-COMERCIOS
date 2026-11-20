@@ -2168,7 +2168,7 @@ const StorageManager = {
     } catch (e) {}
   },
 
-  // Traer restaurantes desde la nube (Google Sheets) a este dispositivo
+  // Traer restaurantes desde la nube (Google Sheets como ÚNICA FUENTE DE LA VERDAD)
   async syncRestaurantsFromCloud() {
     const webhook = this.getCentralWebhookUrl();
     if (!webhook || !webhook.startsWith('http')) {
@@ -2183,19 +2183,10 @@ const StorageManager = {
       const data = await response.json();
       if (data && data.status === 'success' && Array.isArray(data.restaurants)) {
         if (data.restaurants.length > 0) {
-          const current = this.getRestaurants();
-          // Fusionar sin perder datos locales
-          data.restaurants.forEach(cloudRest => {
-            const idx = current.findIndex(c => c.id.toLowerCase() === cloudRest.id.toLowerCase());
-            if (idx >= 0) {
-              current[idx] = { ...current[idx], ...cloudRest };
-            } else {
-              current.push(cloudRest);
-            }
-          });
-          this.saveRestaurants(current);
+          // Google Sheets es la fuente autoritativa de restaurantes
+          this.saveRestaurants(data.restaurants);
+          return { success: true, count: data.restaurants.length };
         }
-        return { success: true, count: data.restaurants.length };
       }
       return { success: false, message: 'La nube no devolvió restaurantes válidos.' };
     } catch (e) {
@@ -2424,7 +2415,7 @@ const StorageManager = {
     return payload;
   },
 
-  // Traer encuestas recibidas desde la nube (Google Sheets) a este dispositivo
+  // Traer encuestas recibidas desde la nube (Google Sheets como ÚNICA FUENTE DE LA VERDAD)
   async syncSubmissionsFromCloud() {
     const webhook = this.getCentralWebhookUrl();
     if (!webhook || !webhook.startsWith('http')) {
@@ -2433,43 +2424,23 @@ const StorageManager = {
 
     try {
       const url = webhook + (webhook.includes('?') ? '&' : '?') + 'action=getSubmissions&t=' + Date.now();
-      const response = await fetch(url);
+      const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) {
         throw new Error(`Error en servidor (${response.status})`);
       }
       const data = await response.json();
 
       if (data && data.status === 'success' && Array.isArray(data.submissions)) {
-        const localList = this.getSubmissions();
-        const map = new Map();
-
-        // 1. Cargar las encuestas remotas
-        data.submissions.forEach(sub => {
-          if (sub && sub.id) {
-            map.set(sub.id, sub);
-          }
-        });
-
-        // 2. Fusionar con las locales sin perder nada
-        localList.forEach(localSub => {
-          if (localSub && localSub.id) {
-            if (!map.has(localSub.id)) {
-              map.set(localSub.id, localSub);
-            } else {
-              map.set(localSub.id, { ...map.get(localSub.id), ...localSub });
-            }
-          }
-        });
-
-        // 3. Ordenar cronológicamente (más recientes primero)
-        const merged = Array.from(map.values()).sort((a, b) => {
+        // Google Sheets es la FUENTE ÚNICA DE LA VERDAD:
+        // Si borraste una fila en Sheets, desaparece aquí sin revivirla.
+        const cloudSubmissions = data.submissions.sort((a, b) => {
           const tA = new Date(a.createdAt || 0).getTime() || 0;
           const tB = new Date(b.createdAt || 0).getTime() || 0;
           return tB - tA;
         });
 
-        localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(merged));
-        return { success: true, count: merged.length, cloudCount: data.submissions.length };
+        localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(cloudSubmissions));
+        return { success: true, count: cloudSubmissions.length };
       }
 
       return { success: false, message: 'Respuesta inválida del servidor central.' };
@@ -3241,19 +3212,13 @@ const AdminApp = {
 
     if (window.StorageManager.getCentralWebhookUrl()) {
       try {
-        // 1. Respaldar y sincronizar los restaurantes locales en la nube
-        const localList = window.StorageManager.getRestaurants();
-        for (const r of localList) {
-          await window.StorageManager.pushRestaurantToCloud(r);
-        }
-
-        // 2. Traer lista consolidada de la nube
+        // 1. Traer lista consolidada de restaurantes de la nube (Google Sheets como fuente única)
         const resRest = await window.StorageManager.syncRestaurantsFromCloud();
         if (resRest && resRest.success && resRest.count > 0) {
           this.renderRestaurantsList();
         }
 
-        // 3. Traer encuestas de clientes recibidas
+        // 2. Traer encuestas de clientes recibidas (Google Sheets como fuente única)
         const resSubs = await window.StorageManager.syncSubmissionsFromCloud();
         if (resSubs && resSubs.success) {
           this.renderStats();
