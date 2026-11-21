@@ -397,10 +397,19 @@
 
           <!-- Previsualización del Comentario para copiar -->
           <div id="comment-preview-box" class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-left hidden">
-            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-              Tu reseña lista para pegar:
-            </span>
-            <p id="comment-preview-text" class="text-xs text-slate-700 italic font-medium"></p>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                Tu reseña lista para pegar:
+              </span>
+              <span class="text-[10px] font-bold text-amber-700 bg-amber-100/70 border border-amber-300 px-2 py-0.5 rounded-full">
+                Se copiará en 1 toque
+              </span>
+            </div>
+            <p id="comment-preview-text" class="text-xs text-slate-800 italic font-semibold p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-inner"></p>
+            <div class="mt-2.5 flex items-center gap-2 text-[11px] text-amber-900 font-medium bg-amber-500/10 p-2.5 rounded-xl border border-amber-300/60">
+              <span class="text-base flex-shrink-0">💡</span>
+              <span><strong>Paso final fácil:</strong> Al abrirse Google Maps, <strong>mantén presionado el dedo</strong> en el recuadro y toca <strong>"Pegar"</strong>.</span>
+            </div>
           </div>
 
           <!-- BOTÓN PRINCIPAL: COPIAR Y GOOGLE MAPS -->
@@ -410,9 +419,10 @@
               <span>Copiar y Calificar en Google Maps</span>
               <span>📍</span>
             </button>
-            <p class="text-[11px] text-slate-400 mt-2">
-              (Se copiará tu comentario al portapapeles y se abrirá Google Maps en 1 toque)
-            </p>
+            <div class="mt-2.5 p-2 bg-amber-50/80 rounded-xl border border-amber-200/70 text-slate-600 text-[11px] flex items-center justify-center gap-1.5 font-medium">
+              <span>📋</span>
+              <span>Se copiará al portapapeles ➔ En Google Maps: <strong>Mantén presionado y toca "Pegar"</strong></span>
+            </div>
           </div>
 
           <div class="pt-4 border-t border-slate-100 space-y-2">
@@ -3043,7 +3053,7 @@ const SurveyApp = {
         copyGoogleBtn.onclick = () => {
           if (this.formData.comment) {
             navigator.clipboard.writeText(this.formData.comment).then(() => {
-              copyGoogleBtn.innerHTML = '✅ ¡Comentario copiado! Abriendo Google Maps...';
+              copyGoogleBtn.innerHTML = '<span>✅ ¡Comentario copiado!</span> <span class="text-xs font-normal block mt-0.5">En Google Maps: mantén presionado y dale a Pegar</span>';
             }).catch(() => {
               console.log('Clipboard fallback');
             });
@@ -3051,7 +3061,7 @@ const SurveyApp = {
 
           setTimeout(() => {
             window.open(this.restaurant.googleMapsUrl, '_blank');
-          }, 400);
+          }, 450);
         };
       }
 
