@@ -2093,10 +2093,36 @@ const StorageManager = {
     }
 
     const list = this.getRestaurants();
-    return list.find(r => r.id.toLowerCase() === (id || '').toLowerCase()) || list[0];
+    const found = list.find(r => r.id.toLowerCase() === (id || '').toLowerCase());
+    if (found) return found;
+
+    // Si no existe pero tenemos un ID/slug, generar un perfil provisional limpio para renderizado instantáneo (<50ms)
+    if (id) {
+      const cleanName = id.replace(/[-_]+/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      return {
+        id: id,
+        name: cleanName,
+        tagline: 'Tu satisfacción es lo primero',
+        logo: 'https://cdn-icons-png.flaticon.com/512/992/992747.png',
+        primaryColor: '#b45309',
+        accentColor: '#f59e0b',
+        googleMapsUrl: '',
+        rewardText: '🎁 ¡Regístrate para recibir beneficios VIP exclusivos!',
+        hasImmediateReward: false,
+        immediateRewardText: '',
+        sheetsWebhookUrl: '',
+        whatsappContact: '',
+        questions: [
+          { id: 'quality', label: 'Sabor y Calidad de la Pastelería / Comida', icon: '🍰' },
+          { id: 'cleanliness', label: 'Aseo y Ambiente del Establecimiento', icon: '✨' },
+          { id: 'service', label: 'Atención y Rapidez del Personal', icon: '☕' }
+        ]
+      };
+    }
+
+    return list[0];
   },
 
-  // Guardar o actualizar un restaurante individual y sincronizar con la nube
   // Guardar o actualizar un restaurante individual y sincronizar con la nube
   async upsertRestaurant(restaurantData, syncCloud = false) {
     const list = this.getRestaurants();
@@ -2494,6 +2520,8 @@ window.StorageManager = StorageManager;
 const SurveyApp = {
   restaurant: null,
   currentStep: 1,
+  _listenersAttached: false,
+  _historyAttached: false,
   formData: {
     customerName: '',
     customerPhone: '',
@@ -2507,17 +2535,21 @@ const SurveyApp = {
     requestedContact: false
   },
 
-  async init() {
-    await this.loadRestaurant();
+  init() {
+    // 1. Carga INMEDIATA local / inteligente / provisional (<50ms)
+    this.loadRestaurantInitial();
     this.renderHeader();
     this.renderDynamicAspects();
     this.setupEventListeners();
     this.setupHistoryNavigation();
     this.showStep(1, false);
+
+    // 2. En segundo plano invisible, consultar Google Sheets sin demorar ni un segundo al usuario
+    this.syncCloudInBackground();
   },
 
-  // Identificar el restaurante activo
-  async loadRestaurant() {
+  // Identificar el restaurante activo de forma instantánea
+  loadRestaurantInitial() {
     const urlParams = new URLSearchParams(window.location.search);
     let slug = urlParams.get('r');
 
@@ -2540,37 +2572,49 @@ const SurveyApp = {
       if (slug) sessionStorage.setItem('last_active_survey_restaurant', slug);
     } catch (e) {}
 
-    // 1. Mostrar de inmediato la versión local (si existe) para que la pantalla abra al instante
-    let rest = window.StorageManager.getRestaurant(slug);
-    if (rest) {
-      this.restaurant = rest;
-      this.applyBrand();
+    // Mostrar de inmediato la versión local, QR inteligente o perfil provisional instantáneo
+    this.restaurant = window.StorageManager.getRestaurant(slug);
+    if (!this.restaurant) {
+      this.restaurant = window.StorageManager.getRestaurants()[0];
     }
+    this.applyBrand();
+  },
 
-    // 2. Traer SIEMPRE la versión fresca desde Google Sheets en la nube (refresca ganchos, preguntas y gratificaciones)
+  // Alias para mantener retrocompatibilidad
+  loadRestaurant() {
+    this.loadRestaurantInitial();
+  },
+
+  // Sincronización silenciosa en segundo plano con Google Sheets
+  async syncCloudInBackground() {
+    const slug = (this.restaurant && this.restaurant.id) || 'ciudad-montes';
     try {
       const cloudRest = await window.StorageManager.fetchRestaurantFromCloud(slug);
       if (cloudRest) {
         this.restaurant = cloudRest;
         this.applyBrand();
         this.renderHeader();
-        this.renderDynamicAspects();
-        if (this.currentStep === 3) {
+
+        // Si el cliente todavía está en el Paso 1, refrescamos los aspectos para cuando avance
+        if (this.currentStep === 1) {
+          this.renderDynamicAspects(false);
+        } else if (this.currentStep === 2) {
+          // Si el cliente ya está en el Paso 2 respondiendo, preservamos lo que haya marcado
+          this.renderDynamicAspects(true);
+        } else if (this.currentStep === 3) {
           this.renderResultBranch();
         }
       }
     } catch (e) {
-      console.warn('No se pudo actualizar restaurante desde la nube:', e);
-    }
-
-    if (!this.restaurant) {
-      this.restaurant = window.StorageManager.getRestaurants()[0];
-      this.applyBrand();
+      console.warn('Sincronización en segundo plano con la nube continuó con datos locales:', e);
     }
   },
 
   // Control de historial para el botón físico o gesto de Atrás del celular
   setupHistoryNavigation() {
+    if (this._historyAttached) return;
+    this._historyAttached = true;
+
     if (!history.state || typeof history.state.step !== 'number') {
       try {
         history.replaceState({ step: 1 }, '', window.location.href);
@@ -2612,6 +2656,9 @@ const SurveyApp = {
   },
 
   setupEventListeners() {
+    if (this._listenersAttached) return;
+    this._listenersAttached = true;
+
     // Paso 1: Formulario VIP
     const vipForm = document.getElementById('vip-form');
     if (vipForm) {
@@ -2674,26 +2721,31 @@ const SurveyApp = {
     this.setOverallRating(5);
   },
 
-  // Renderizar aspectos dinámicos configurados con su recuadro de observaciones
-  renderDynamicAspects() {
+  // Renderizar aspectos dinámicos configurados con su recuadro de observaciones (soporta actualización en segundo plano)
+  renderDynamicAspects(preserveExisting = false) {
     const container = document.getElementById('survey-dynamic-aspects-container');
     if (!container) return;
 
     const questions = (this.restaurant && this.restaurant.questions && this.restaurant.questions.length > 0)
       ? this.restaurant.questions
       : [
-        { id: 'quality', label: 'Sabor y Calidad de la Comida / Producto', icon: '🍰' },
-        { id: 'cleanliness', label: 'Aseo y Presentación de las Instalaciones', icon: '✨' },
-        { id: 'service', label: 'Atención y Amabilidad del Personal', icon: '☕' }
+        { id: 'quality', label: 'Sabor y Calidad de la Pastelería / Comida', icon: '🍰' },
+        { id: 'cleanliness', label: 'Aseo y Ambiente del Establecimiento', icon: '✨' },
+        { id: 'service', label: 'Atención y Rapidez del Personal', icon: '☕' }
       ];
 
-    // Inicializar datos de aspectos
-    this.formData.aspectsData = questions.map((q, idx) => ({
-      id: q.id || `aspect_${idx + 1}`,
-      label: q.label,
-      rating: 5,
-      note: ''
-    }));
+    const oldAspects = Array.isArray(this.formData.aspectsData) ? this.formData.aspectsData : [];
+
+    // Inicializar datos de aspectos preservando datos existentes si preserveExisting es true
+    this.formData.aspectsData = questions.map((q, idx) => {
+      const existing = oldAspects.find(o => o.id === (q.id || `aspect_${idx + 1}`)) || oldAspects[idx];
+      return {
+        id: q.id || `aspect_${idx + 1}`,
+        label: q.label,
+        rating: (preserveExisting && existing && typeof existing.rating === 'number') ? existing.rating : 5,
+        note: (preserveExisting && existing && existing.note) ? existing.note : ''
+      };
+    });
 
     const ratingLabels = {
       1: '1 - Malo',
@@ -2703,35 +2755,38 @@ const SurveyApp = {
       5: '5 - Excelente'
     };
 
-    container.innerHTML = questions.map((q, idx) => `
+    container.innerHTML = questions.map((q, idx) => {
+      const currentVal = (this.formData.aspectsData[idx] && this.formData.aspectsData[idx].rating) || 5;
+      const currentNote = (this.formData.aspectsData[idx] && this.formData.aspectsData[idx].note) || '';
+      return `
       <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 shadow-sm transition hover:border-slate-300">
         <div class="flex items-center justify-between mb-2">
           <label class="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
             <span>${q.icon || '⭐'}</span> <span>${q.label}</span>
           </label>
           <span id="aspect-badge-${idx}" class="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-            5 - Excelente
+            ${ratingLabels[currentVal] || `${currentVal} Estrellas`}
           </span>
         </div>
 
         <!-- Botones de Calificación 1 a 5 -->
         <div class="grid grid-cols-5 gap-1.5 text-center mb-2.5">
-          <button type="button" data-aspect="${idx}" data-val="1" class="aspect-pill-${idx} rating-pill py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white text-slate-600">1</button>
-          <button type="button" data-aspect="${idx}" data-val="2" class="aspect-pill-${idx} rating-pill py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white text-slate-600">2</button>
-          <button type="button" data-aspect="${idx}" data-val="3" class="aspect-pill-${idx} rating-pill py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white text-slate-600">3</button>
-          <button type="button" data-aspect="${idx}" data-val="4" class="aspect-pill-${idx} rating-pill py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white text-slate-600">4</button>
-          <button type="button" data-aspect="${idx}" data-val="5" class="aspect-pill-${idx} rating-pill active-pill py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white text-slate-600">5</button>
+          ${[1, 2, 3, 4, 5].map(val => `
+            <button type="button" data-aspect="${idx}" data-val="${val}" class="aspect-pill-${idx} rating-pill ${val === currentVal ? 'active-pill' : ''} py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white text-slate-600">${val}</button>
+          `).join('')}
         </div>
 
         <!-- Recuadro de Observación Específica por Ítem -->
         <div>
           <input type="text"
                  id="aspect-note-${idx}"
+                 value="${currentNote ? currentNote.replace(/"/g, '&quot;') : ''}"
                  placeholder="¿Alguna observación sobre este punto? (Opcional)"
                  class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs placeholder:text-slate-400 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition">
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     // Asignar listeners a los botones y campos de texto
     questions.forEach((q, idx) => {
